@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cube Arena — 큐브 타이머 · 프렌드 배틀</title>
+<meta name="description" content="WCA 18종목 스크램블, 스택매트 타이머, 프렌드 배틀, 클락 미니게임. 브라우저에서 바로 즐기는 큐브 아케이드.">
+<meta name="theme-color" content="#070914">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-cube" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><path d="M16 2 30 10v12L16 30 2 22V10Z" fill="url(#g1)" opacity=".95"/><path d="M16 2v14L2 10Zm0 14 14-6v12L16 30Z" fill="#000" opacity=".22"/><defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#a855f7"/></linearGradient></defs></svg>
+      </span>
+      <span class="brand-name">CUBE<b>ARENA</b></span>
+    </div>
+    <div class="hud">
+      <button class="chip level-chip" id="hudLevel" type="button" aria-label="레벨과 경험치">
+        <span class="lv" id="hudLvText">Lv.1</span>
+        <span class="xp-bar"><i id="hudXpFill"></i></span>
+        <span class="xp-num" id="hudXpText">0</span>
+      </button>
+      <button class="chip streak-chip" id="hudStreak" type="button" aria-label="연속 출석">
+        <span aria-hidden="true">🔥</span><b id="hudStreakText">0</b>
+      </button>
+      <button class="icon-btn" id="btnSound" type="button" aria-label="효과음 끄기">🔊</button>
+      <button class="icon-btn" id="btnTheme" type="button" aria-label="테마 바꾸기">🌙</button>
+      <button class="icon-btn guide-btn" id="btnGuide" type="button" aria-label="사용 설명서 열기" aria-haspopup="dialog" title="사용 설명서">?</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="화면 이동">
+    <button class="tab is-active" data-view="timer" type="button"><span aria-hidden="true">⏱</span><b>타이머</b></button>
+    <button class="tab" data-view="battle" type="button"><span aria-hidden="true">🤝</span><b>배틀</b></button>
+    <button class="tab" data-view="games" type="button"><span aria-hidden="true">🎮</span><b>게임</b></button>
+    <button class="tab" data-view="stats" type="button"><span aria-hidden="true">🏆</span><b>기록</b></button>
+  </nav>
+
+  <main class="main">
+
+    <!-- ============================ TIMER ============================ -->
+    <section class="view is-active" id="view-timer">
+      <div class="timer-grid">
+        <div class="col main-col">
+          <div class="card scramble-card">
+            <div class="scramble-head">
+              <button class="event-pill" id="eventPill" type="button" aria-label="종목 선택">
+                <span class="ev-name" id="evName">3x3x3</span>
+                <span class="ev-badge" id="evBadge" hidden></span>
+                <span class="caret" aria-hidden="true">▾</span>
+              </button>
+              <div class="scramble-actions">
+                <button class="btn ghost sm" id="btnPreview" type="button" aria-pressed="true">미리보기</button>
+                <button class="btn ghost sm" id="btnNewScramble" type="button" aria-label="새 스크램블">🔄 새 스크램블</button>
+              </div>
+            </div>
+            <div class="scramble-text" id="scrambleText" aria-live="polite">스크램블 준비 중…</div>
+            <div class="preview-box" id="previewBox"></div>
+          </div>
+
+          <div class="timer-stage" id="timerPad" role="button" tabindex="0" aria-label="타이머. 길게 눌러 초록불이 되면 떼세요">
+            <div class="inspect-overlay" id="inspectOverlay" hidden></div>
+            <div class="timer-time" id="timerTime">0.00</div>
+            <div class="timer-hint" id="timerHint">길게 눌러 초록불 → 떼면 시작</div>
+            <span class="pad-ring" aria-hidden="true"></span>
+          </div>
+
+          <div class="split-bar" id="splitBar"></div>
+
+          <div class="stat-strip">
+            <button class="stat" type="button" data-avg="5"><span>Ao5</span><b id="stAo5">—</b></button>
+            <button class="stat" type="button" data-avg="12"><span>Ao12</span><b id="stAo12">—</b></button>
+            <button class="stat" type="button" data-avg="50"><span>Ao50</span><b id="stAo50">—</b></button>
+            <button class="stat" type="button" data-avg="100"><span>Ao100</span><b id="stAo100">—</b></button>
+            <div class="stat"><span>Best</span><b id="stBest">—</b></div>
+            <div class="stat"><span>Mean</span><b id="stMean">—</b></div>
+          </div>
+
+          <div class="tier-card">
+            <div class="tier-left">
+              <div class="tier-badge" id="tierBadge">ROOKIE</div>
+              <div class="tier-meta">
+                <div class="tier-gauge"><i id="tierFill"></i></div>
+                <div class="tier-next" id="tierNext">기록을 만들면 등급이 올라가요</div>
+              </div>
+            </div>
+            <div class="tier-pb"><span>PB</span><b id="tierPb">—</b></div>
+          </div>
+
+          <div class="card chart-card">
+            <div class="card-head">
+              <h2>기록 추이</h2>
+              <div class="chart-legend">
+                <span class="lg lg-single">싱글</span>
+                <span class="lg lg-ao5">Ao5</span>
+              </div>
+            </div>
+            <div class="chart-box" id="chartBox"></div>
+          </div>
+        </div>
+
+        <div class="col side-col">
+          <div class="card quest-card">
+            <div class="card-head">
+              <h2>오늘의 퀘스트</h2>
+              <span class="tag soft" id="questStreak">🔥 0일 연속</span>
+            </div>
+            <div id="questList" class="quest-list"></div>
+          </div>
+
+          <div class="card solves-card">
+            <div class="card-head">
+              <h2>기록 <small id="solveCount">0</small></h2>
+              <button class="btn ghost sm" id="btnClearSolves" type="button">초기화</button>
+            </div>
+            <ol class="solve-list" id="solveList"></ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ BATTLE ============================ -->
+    <section class="view" id="view-battle">
+      <div class="battle-wrap">
+        <div class="card" id="battleSetup">
+          <div class="card-head">
+            <h2>🤝 프렌드 배틀</h2>
+            <span class="tag soft">서버 없이 링크로</span>
+          </div>
+          <p class="muted">
+            종목을 고르고 링크를 만들면 <b>같은 스크램블 5개</b>가 담긴 초대 링크가 만들어집니다.
+            친구가 링크를 열면 바로 대결 모드로 들어가고, 끝나면 결과 링크로 리더보드에서 나란히 비교할 수 있어요.
+          </p>
+          <div class="form-grid">
+            <label class="field">
+              <span>종목</span>
+              <select id="battleEvent"></select>
+            </label>
+            <label class="field">
+              <span>내 닉네임</span>
+              <input id="battleName" maxlength="12" placeholder="Cuber" autocomplete="off" spellcheck="false">
+            </label>
+          </div>
+          <div class="row">
+            <button class="btn primary" id="btnCreateBattle" type="button">배틀 링크 만들기</button>
+            <button class="btn" id="btnStartSolo" type="button">바로 도전 (5라운드)</button>
+          </div>
+          <div class="join-row">
+            <input id="joinLink" placeholder="친구에게 받은 링크를 붙여넣기" autocomplete="off" spellcheck="false">
+            <button class="btn" id="btnJoin" type="button">참가</button>
+          </div>
+        </div>
+
+        <div class="card" id="battleLinkPanel" hidden>
+          <div class="card-head">
+            <h2>초대 링크가 만들어졌어요</h2>
+            <span class="tag good" id="linkEventTag"></span>
+          </div>
+          <p class="muted small">아래 링크를 카카오톡·디스코드에 붙여 보내세요. 친구는 같은 5개 스크램블로 도전합니다.</p>
+          <div class="copy-row">
+            <input id="battleLinkOut" readonly>
+            <button class="btn primary sm" id="btnCopyLink" type="button">링크 복사</button>
+          </div>
+          <div class="row">
+            <button class="btn" id="btnCopyShare" type="button">공유 문구 복사</button>
+            <button class="btn" id="btnBattleGo" type="button">내가 먼저 도전</button>
+          </div>
+        </div>
+
+        <div class="card" id="battleRun" hidden>
+          <div class="battle-head">
+            <div class="battle-head-left">
+              <span class="tag" id="battleEventTag">3x3x3</span>
+              <span class="battle-round" id="battleRoundLabel">라운드 1 / 5</span>
+            </div>
+            <div class="dots" id="battleProgress"></div>
+          </div>
+          <div class="scramble-text compact" id="battleScramble"></div>
+          <div class="timer-stage compact" id="battlePad" role="button" tabindex="0" aria-label="배틀 타이머">
+            <div class="inspect-overlay" id="battleInspect" hidden></div>
+            <div class="timer-time" id="battleTime">0.00</div>
+            <div class="timer-hint" id="battleHint">길게 눌러 초록불 → 떼면 시작</div>
+          </div>
+          <div class="battle-rounds" id="battleRounds"></div>
+          <div class="row">
+            <button class="btn ghost sm" id="btnBattleQuit" type="button">배틀 나가기</button>
+          </div>
+        </div>
+
+        <div class="card" id="battleResult" hidden>
+          <div class="card-head">
+            <h2>🎉 배틀 완료!</h2>
+            <span class="tag" id="resultEventTag"></span>
+          </div>
+          <div class="result-summary" id="resultSummary"></div>
+          <div class="copy-row">
+            <input id="resultLinkOut" readonly>
+            <button class="btn primary sm" id="btnCopyResult" type="button">결과 링크 복사</button>
+          </div>
+          <div class="row">
+            <button class="btn" id="btnSaveCard" type="button">결과 카드 저장 (PNG)</button>
+            <button class="btn" id="btnBattleAgain" type="button">새 배틀 만들기</button>
+          </div>
+        </div>
+
+        <div class="card" id="battleBoard" hidden>
+          <div class="card-head">
+            <h2>🏆 배틀 리더보드</h2>
+            <button class="btn ghost sm" id="btnLoadFriend" type="button">친구 결과 불러오기</button>
+          </div>
+          <div id="battleBoardBody" class="board-body"></div>
+          <div class="diff-strip" id="battleDiffs" hidden></div>
+          <div class="join-row" id="loadFriendRow" hidden>
+            <input id="friendResultLink" placeholder="친구에게 받은 결과 링크">
+            <button class="btn" id="btnApplyFriend" type="button">불러오기</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ GAMES ============================ -->
+    <section class="view" id="view-games">
+      <div class="games-grid">
+        <div class="card clock-card">
+          <div class="card-head">
+            <h2>⏰ 클락 시뮬레이터</h2>
+            <span class="tag soft">타임어택</span>
+          </div>
+          <div class="clock-top">
+            <div class="clock-time" id="cgTime">0.00</div>
+            <div class="clock-meta"><span id="cgMoves">0수</span><i>·</i><span id="cgCorrect">0 / 18</span></div>
+          </div>
+          <div class="clock-board" id="clockBoard"></div>
+          <div class="clock-controls">
+            <button class="btn sm" id="cgNew" type="button">새 스크램블</button>
+            <button class="btn sm" id="cgFlip" type="button">뒤집기 y2</button>
+            <span class="muted xs" id="cgBest"></span>
+          </div>
+          <p class="hint">
+            <b>핀</b>을 올린 코너의 <b>휠</b>을 돌리면 그 코너·양옆 다이얼·가운데가 함께 돌아갑니다.
+            핀을 모두 올리면 전체가 돌아가요. 18개 다이얼을 모두 12시에 맞추면 클리어!
+          </p>
+        </div>
+
+        <div class="card sd-card" id="sdCard">
+          <div class="card-head">
+            <h2>💀 서든데스 릴레이</h2>
+            <div class="sd-head-right">
+              <select id="sdEvent" class="sd-select" aria-label="서든데스 종목"></select>
+              <span class="tag soft" id="sdRoundTag">대기</span>
+            </div>
+          </div>
+          <p class="muted small" id="sdDesc">라운드마다 목표 시간이 줄어듭니다. 한 번이라도 넘기면 끝!</p>
+          <div class="sd-top">
+            <div class="sd-cell"><b id="sdTarget">15.00</b><span>목표</span></div>
+            <div class="sd-cell"><b id="sdLast">—</b><span>방금</span></div>
+            <div class="sd-cell"><b id="sdBest">0</b><span>최고 라운드</span></div>
+          </div>
+          <div class="scramble-text compact" id="sdScramble">시작을 누르면 스크램블이 나옵니다</div>
+          <div class="timer-stage compact" id="sdPad" role="button" tabindex="0" aria-label="서든데스 타이머">
+            <div class="timer-time" id="sdTime">0.00</div>
+            <div class="timer-hint" id="sdHint">시작을 누르세요</div>
+          </div>
+          <div class="row">
+            <button class="btn primary sm" id="sdStart" type="button">시작</button>
+            <button class="btn ghost sm" id="sdQuit" type="button">그만두기</button>
+          </div>
+        </div>
+
+        <div class="card chal-card">
+          <div class="card-head">
+            <h2>🧠 스크램블 챌린지</h2>
+            <span class="tag soft" id="chalLevelTag">Lv.1</span>
+          </div>
+          <p class="muted small" id="chalDesc">스크램블을 잠깐 보여줍니다. 사라지면 순서대로 다시 입력하세요.</p>
+          <div class="chal-target" id="chalTarget"></div>
+          <div class="chal-keys" id="chalKeys"></div>
+          <div class="clock-controls">
+            <button class="btn primary sm" id="chalStart" type="button">시작</button>
+            <span class="muted xs" id="chalBest"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ STATS ============================ -->
+    <section class="view" id="view-stats">
+      <div class="stats-grid">
+        <div class="card hero-card">
+          <div class="hero-level">
+            <div class="lv-badge" id="heroLv">Lv.1</div>
+            <div class="hero-xp">
+              <div class="xp-bar big"><i id="heroXpFill"></i></div>
+              <div class="xp-label" id="heroXpText">0 XP</div>
+            </div>
+          </div>
+          <div class="hero-stats">
+            <div><b id="heroSolves">0</b><span>총 솔브</span></div>
+            <div><b id="heroStreak">0</b><span>연속 출석</span></div>
+            <div><b id="heroBadges">0</b><span>업적</span></div>
+            <div><b id="heroEvents">0</b><span>종목</span></div>
+          </div>
+        </div>
+
+        <div class="card span2">
+          <div class="card-head"><h2>개인 최고 기록</h2><span class="tag soft" id="pbEventTag"></span></div>
+          <div class="pb-table" id="pbTable"></div>
+        </div>
+
+        <div class="card span2">
+          <div class="card-head"><h2>업적 도감</h2><span class="tag soft" id="badgeCount">0 / 0</span></div>
+          <div class="badge-grid" id="badgeGrid"></div>
+        </div>
+
+        <div class="card span2">
+          <div class="card-head"><h2>설정</h2></div>
+          <div class="settings-list" id="settingsList">
+            <label class="switch-row"><span>15초 인스펙션</span><input type="checkbox" id="setInspection"><i class="switch"></i></label>
+            <label class="switch-row"><span>스크램블 미리보기</span><input type="checkbox" id="setPreview"><i class="switch"></i></label>
+            <label class="switch-row"><span>스플릿 측정 (Cross · F2L · OLL · PLL)</span><input type="checkbox" id="setSplits"><i class="switch"></i></label>
+            <label class="switch-row"><span>효과음</span><input type="checkbox" id="setSound"><i class="switch"></i></label>
+            <label class="switch-row"><span>라이트 테마</span><input type="checkbox" id="setTheme"><i class="switch"></i></label>
+            <div class="switch-row danger-row">
+              <span>모든 기록 지우기</span>
+              <button class="btn danger sm" id="btnResetAll" type="button">초기화</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<canvas class="confetti" id="confetti" aria-hidden="true"></canvas>
+<div class="modal" id="modal" hidden>
+  <div class="modal-backdrop" data-close="1"></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <h2 id="modalTitle">종목 선택</h2>
+      <button class="icon-btn" id="modalClose" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div class="modal" id="guideModal" hidden>
+  <div class="modal-backdrop" data-guide="close"></div>
+  <div class="modal-card guide-card" role="dialog" aria-modal="true" aria-labelledby="guideTitle" aria-describedby="guideLead">
+    <div class="modal-head guide-head">
+      <h2 id="guideTitle">📖 사용 설명서</h2>
+      <button class="icon-btn" id="guideClose" type="button" aria-label="사용 설명서 닫기">✕</button>
+    </div>
+    <div class="modal-body guide-body" id="guideBody" tabindex="0">
+      <p class="g-lead" id="guideLead">타이머 · 배틀 · 미니게임, 아래 6가지만 알면 다 쓸 수 있어요.</p>
+
+      <section class="g-sec">
+        <div class="g-head"><span class="g-ico" aria-hidden="true">⏱️</span><h3>타이머 &amp; 스플릿</h3></div>
+        <ul class="g-list">
+          <li><b>길게 눌러 초록불</b>이 되면 떼서 시작해요. PC는 <kbd>Space</kbd>를 누르고 있다가 떼면 됩니다.</li>
+          <li><b>15초 인스펙션</b> — 8초·12초에 알려 주고, 15초를 넘기면 <b>+2</b>, 17초를 넘기면 <b>DNF</b>. 기록 탭 설정에서 끌 수 있어요.</li>
+          <li><b>스플릿 모드</b>를 켜면 솔브 중 화면을 탭할 때마다 <b>Cross → F2L → OLL → PLL</b> 4구간으로 나뉘어 기록돼요.</li>
+        </ul>
+        <p class="g-tip">스플릿 모드는 <b>기록 → 설정 → 스플릿 측정</b>에서 켜고 끕니다.</p>
+      </section>
+
+      <section class="g-sec">
+        <div class="g-head"><span class="g-ico" aria-hidden="true">✨</span><h3>FTO &amp; 굿바이 클락</h3></div>
+        <ul class="g-list">
+          <li><b>FTO</b>는 2027년 WCA 신설 종목(정팔면체)이라 <b>NEW</b> 표시와 함께 넣어 두었어요.</li>
+          <li><b>Clock</b>은 2027년 7월까지 <b>레거시</b>로 남는 종목이라, 둘을 합쳐 <b>WCA 18종목</b>을 모두 다룹니다.</li>
+          <li>종목 버튼을 누르면 종목 목록이 열리고, <b>스크램블 미리보기(SVG)</b>로 모양을 바로 확인할 수 있어요.</li>
+        </ul>
+      </section>
+
+      <section class="g-sec">
+        <div class="g-head"><span class="g-ico" aria-hidden="true">🤝</span><h3>친구 배틀 하는 법</h3></div>
+        <div class="g-steps">
+          <div class="g-step"><span class="g-num">1</span><p>방장이 종목을 고르고 <b>[배틀 링크 만들기]</b>를 누른 뒤, 카카오톡·디스코드로 링크를 보내요.</p></div>
+          <div class="g-step"><span class="g-num">2</span><p>친구가 링크를 열면 <b>똑같은 5개 스크램블</b>로 바로 대결이 시작돼요.</p></div>
+          <div class="g-step"><span class="g-num">3</span><p>둘 다 다 풀고 <b>[결과 링크 복사]</b>를 서로 주고받아 <b>[불러오기]</b>에 넣으면, 리더보드에서 <b>Ao5 승패</b>와 <b>라운드별 시차</b>를 나란히 보고 <b>결과 카드 PNG</b>로 저장할 수 있어요!</p></div>
+        </div>
+      </section>
+
+      <section class="g-sec">
+        <div class="g-head"><span class="g-ico" aria-hidden="true">🎮</span><h3>미니게임</h3></div>
+        <ul class="g-list">
+          <li><b>클락 12시 타임어택</b> — 핀을 눌러 올리고, 휠로 <b>±</b>, <b>y2</b>로 뒤집기까지 실제 클락 규칙 그대로. 18개 다이얼을 모두 12시에 맞추면 클리어!</li>
+          <li><b>서든데스 릴레이</b> — 라운드마다 줄어드는 제한시간 안에 살아남기. 한 번이라도 넘기면 끝나요.</li>
+        </ul>
+      </section>
+
+      <section class="g-sec">
+        <div class="g-head"><span class="g-ico" aria-hidden="true">📱</span><h3>홈 화면에 앱처럼 설치하기</h3></div>
+        <ul class="g-list">
+          <li><b>안드로이드 크롬</b> — 오른쪽 위 메뉴 <b>⋮</b> → <b>‘홈 화면에 추가’</b></li>
+          <li><b>아이폰 사파리</b> — 아래 <b>공유(□↑)</b> → <b>‘홈 화면에 추가’</b></li>
+        </ul>
+        <p class="g-tip">설치하면 주소창 없이 앱처럼 열려요.</p>
+      </section>
+
+      <section class="g-sec g-sec-lock">
+        <div class="g-head"><span class="g-ico" aria-hidden="true">🔒</span><h3>데이터 안내</h3></div>
+        <ul class="g-list">
+          <li>모든 기록은 <b>내 폰 브라우저(localStorage)</b>에만 저장되고 <b>서버로 전송되지 않아요</b>. 계정도 로그인도 없습니다.</li>
+          <li>브라우저 데이터를 지우면 기록도 함께 사라지니, <b>기록 → 설정 → 모든 기록 지우기</b> 전에 한 번만 확인해 주세요.</li>
+        </ul>
+      </section>
+
+      <p class="g-foot">바로 시작하려면 이 창을 닫고 타이머를 길게 눌러 보세요 🧊</p>
+    </div>
+  </div>
+</div>
+
+<script src="scrambles.js"></script>
+<script src="puzzles.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "Cube Arena — 큐브 타이머 · 프렌드 배틀",
+  "short_name": "Cube Arena",
+  "description": "WCA 18종목 스크램블과 스택매트 타이머, 친구와 링크로 겨루는 프렌드 배틀, 클락 미니게임을 한 곳에서.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#06080f",
+  "theme_color": "#06080f",
+  "lang": "ko",
+  "dir": "ltr",
+  "categories": ["games", "sports", "utilities"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
