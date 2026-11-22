@@ -1959,15 +1959,37 @@
   }
 
   /* ---------------------------------------------------- sudden death ----- */
-  const SD_EVENTS = {
+  /* WCA 18종목 전부. 종목 난이도에 맞춘 시작 목표(base)·라운드당 감소폭(step)·하한(min).
+     목록은 EVENTS 순서를 그대로 따르므로, 새 종목이 늘어도 여기 조정값만 없으면
+     기본값(SD_FALLBACK)으로 자동 포함됩니다. */
+  const SD_TUNE = {
+    '222': { base: 8000, step: 1000, min: 1500 },
+    pyram: { base: 8000, step: 1000, min: 1500 },
+    skewb: { base: 8000, step: 1000, min: 1500 },
     '333': { base: 15000, step: 2000, min: 3000 },
-    '222': { base: 8000, step: 1200, min: 1500 },
-    pyram: { base: 10000, step: 1500, min: 2500 },
-    skewb: { base: 10000, step: 1500, min: 2500 },
-    clock: { base: 18000, step: 2500, min: 5000 },
-    fto: { base: 45000, step: 5000, min: 12000 }
+    clock: { base: 15000, step: 2000, min: 4000 },
+    '333oh': { base: 28000, step: 3000, min: 8000 },
+    sq1: { base: 30000, step: 3500, min: 8000 },
+    fto: { base: 45000, step: 5000, min: 12000 },
+    '444': { base: 55000, step: 6000, min: 15000 },
+    '555': { base: 100000, step: 10000, min: 30000 },
+    minx: { base: 120000, step: 12000, min: 40000 },
+    '666': { base: 180000, step: 15000, min: 60000 },
+    '777': { base: 210000, step: 15000, min: 70000 },
+    '333bf': { base: 180000, step: 15000, min: 60000 },
+    '444bf': { base: 240000, step: 20000, min: 90000 },
+    '555bf': { base: 300000, step: 20000, min: 120000 },
+    '333fm': { base: 300000, step: 20000, min: 120000 },
+    '333mbf': { base: 300000, step: 20000, min: 120000 }
   };
-  const SD = { ev: '333', round: 1, target: 15000, active: false, last: null };
+  const SD_FALLBACK = { base: 20000, step: 2500, min: 5000 };
+  const SD_EVENTS = {};
+  EVENTS.forEach((ev) => {
+    const t = SD_TUNE[ev.id] || SD_FALLBACK;
+    const step = Math.max(500, Math.min(t.step, t.base - 800));
+    SD_EVENTS[ev.id] = { base: t.base, step: step, min: Math.min(t.min, t.base - step) };
+  });
+  const SD = { ev: '333', round: 1, target: 15000, active: false, last: null, pending: null };
   let sdTimer = null;
 
   function sdCfg() {
@@ -1988,8 +2010,10 @@
     const card = $('#sdCard');
     if (card) card.classList.toggle('dead', !SD.active && !!SD.last);
     if (!SD.active && !SD.last) {
-      $('#sdScramble').textContent = '시작을 누르면 스크램블이 나옵니다';
-      $('#sdHint').textContent = SD.active ? '' : '시작을 누르세요';
+      $('#sdScramble').textContent = SD.pending
+        ? SD.pending.text
+        : '시작을 누르면 스크램블이 나옵니다';
+      $('#sdHint').textContent = SD.pending ? '시작을 누르면 이 스크램블로' : '시작을 누르세요';
     }
   }
   function sdStart() {
@@ -2003,7 +2027,9 @@
     Sound.ready();
   }
   function sdNewRound() {
-    const sc = SCR.scrambleFor(SD.ev, SCR.randomSeed());
+    /* 종목을 고르는 순간 보여준 스크램블이 있으면 1라운드는 그것으로 시작한다. */
+    const sc = SD.round === 1 && SD.pending ? SD.pending : SCR.scrambleFor(SD.ev, SCR.randomSeed());
+    SD.pending = null;
     $('#sdScramble').textContent = sc.text;
     $('#sdHint').textContent = '목표 ' + fmt(SD.target) + ' 안에 맞추세요';
     if (sdTimer) sdTimer.reset();
@@ -2483,12 +2509,18 @@
     });
   }
 
+  function sdPreview() {
+    SD.pending = SCR.scrambleFor(SD.ev, SCR.randomSeed());
+    return SD.pending;
+  }
+
   function bindSuddenDeath() {
     const sel = $('#sdEvent');
     Object.keys(SD_EVENTS).forEach((id) => {
       const o = document.createElement('option');
       o.value = id;
-      o.textContent = BY_ID[id] ? BY_ID[id].name : id;
+      const name = BY_ID[id] ? BY_ID[id].name : id;
+      o.textContent = name + ' · ' + fmt(SD_EVENTS[id].base);
       sel.appendChild(o);
     });
     sel.value = SD.ev;
@@ -2496,8 +2528,16 @@
       SD.ev = sel.value;
       SD.active = false;
       SD.last = null;
+      SD.round = 1;
+      SD.target = sdCfg().base;
+      sdPreview();
       if (sdTimer) sdTimer.reset();
       sdRender();
+      toast(
+        (BY_ID[SD.ev] ? BY_ID[SD.ev].name : SD.ev) + ' · 목표 ' + fmt(SD.target) + '부터 시작',
+        null,
+        '💀'
+      );
     });
     $('#sdStart').addEventListener('click', () => {
       if (SD.active) {
@@ -2535,6 +2575,7 @@
     });
     pad.addEventListener('pointercancel', () => sdTimer.release());
     pad.addEventListener('contextmenu', (e) => e.preventDefault());
+    sdPreview();
     sdRender();
   }
 
