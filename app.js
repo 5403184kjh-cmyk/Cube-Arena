@@ -1148,6 +1148,11 @@
         const best = bestOf(b.rounds);
         addSummary('#resultSummary', [['Ao5', fmt(ao5)], ['Best', fmt(best)], ['라운드', b.rounds.length + '/5']]);
         $('#resultLinkOut').value = baseUrl() + '#result=' + encode({ t: 'r', e: b.e, s: b.s, n: b.name, r: encRounds(b.rounds) });
+      } else {
+        // 진행 중(또는 아직 0라운드)인 배틀은 새로고침·재진입해도 타이머 화면을 바로 띄운다.
+        $('#battleRun').hidden = false;
+        renderBattleRound();
+        renderBattleRounds();
       }
     }
     if (!has) {
@@ -2295,6 +2300,8 @@
       $('#linkEventTag').textContent = BY_ID[b.e].name;
       $('#battleLinkPanel').hidden = false;
       $('#battleSetup').hidden = true;
+      // 링크를 막 만든 단계에서는 타이머 대신 초대 링크만 보여 준다.
+      $('#battleRun').hidden = true;
       toast('초대 링크를 만들었어요', 'good', '🔗');
       Sound.win();
     });
@@ -2355,6 +2362,16 @@
       $('#battleRun').hidden = true;
       $('#battleBoard').hidden = true;
     });
+    // 어떤 상태에서도 배틀 설정 화면으로 돌아가는 안전 버튼
+    const boardReset = $('#btnBoardReset');
+    if (boardReset) {
+      boardReset.addEventListener('click', () => {
+        if (battleTimer) battleTimer.reset();
+        S.battle = null;
+        save();
+        renderBattleAll();
+      });
+    }
     $('#btnSaveCard').addEventListener('click', saveResultCard);
     $('#btnLoadFriend').addEventListener('click', () => {
       const row = $('#loadFriendRow');
