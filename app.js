@@ -1507,7 +1507,10 @@
   /* Opponent who is expected but has not sent a result yet. */
   function pendingOppName(b) {
     if (!b) return '';
-    const names = (b.entries || []).map((en) => en.name);
+    const ents = b.entries || [];
+    /* 이미 실시간으로 붙은 상대가 있으면 '친구' 자리표시 줄은 쓰지 않는다. */
+    if (ents.some((en) => en.cid)) return '';
+    const names = ents.map((en) => en.name);
     const nm = b.opp || (b.invite && !names.length ? L('친구', 'Friend') : '');
     if (!nm) return '';
     return names.indexOf(nm) === -1 ? nm : '';
@@ -1526,6 +1529,8 @@
 
   function inviteUrl(b) {
     const payload = { t: 'b', e: b.e, s: b.s, n: b.host || b.name };
+    const room = liveRoomOf(b);
+    if (room) payload.r = room;
     if (b.ai) payload.a = b.ai;
     return baseUrl() + '#battle=' + encode(payload);
   }
@@ -1552,6 +1557,7 @@
     S.battle = {
       e: e,
       s: seed,
+      room: randRoom(),
       name: name,
       host: name,
       ai: pick.ai,
@@ -1566,6 +1572,7 @@
     checkAchievements();
     save();
     renderBattleAll();
+    liveStart(S.battle);
   }
 
   function renderBattleVs() {
@@ -1614,7 +1621,7 @@
         addSummary('#resultSummary', [['Ao5', fmt(ao5)], ['Best', fmt(best)], ['라운드', b.rounds.length + '/5']]);
         const rival = boardRows().filter((r) => !r.me && !r.pending)[0];
         if (rival) addSummary('#resultSummary', [[rival.name, rival.ao5 == null ? '—' : fmt(rival.ao5)]]);
-        $('#resultLinkOut').value = baseUrl() + '#result=' + encode({ t: 'r', e: b.e, s: b.s, n: b.name, r: encRounds(b.rounds) });
+        $('#resultLinkOut').value = baseUrl() + '#result=' + encode({ t: 'r', e: b.e, s: b.s, n: b.name, r: encRounds(b.rounds), k: liveRoomOf(b) });
       } else {
         // 진행 중(또는 아직 0라운드)인 배틀은 새로고침·재진입해도 타이머 화면을 바로 띄운다.
         $('#battleRun').hidden = false;
@@ -1643,6 +1650,8 @@
     b.rounds = [];
     b.done = false;
     save();
+    liveStart(b);
+    livePublish();   // 새 판 시작 — 방에 남아 있던 내 옛 기록을 지운다
     $('#battleSetup').hidden = true;
     $('#battleLinkPanel').hidden = true;
     $('#battleResult').hidden = true;
@@ -1694,6 +1703,7 @@
     questSpecial('battle');
     addXp(12, true);
     save();
+    livePublish();   // 상대 폰의 리더보드에 이 라운드가 바로 뜨게
     if (b.rounds.length >= 5) {
       b.done = true;
       if (!b.finishPaid) {
@@ -1701,6 +1711,7 @@
         addGems(10, L('배틀 완주', 'battle finished'));
       }
       save();
+      livePublish();
       renderBattleAll();
       renderBattleBoard();
       Sound.win();
@@ -1717,7 +1728,10 @@
     const b = S.battle;
     if (!b) return [];
     const rows = [{ name: b.name + L(' (나)', ' (me)'), me: true, rounds: b.rounds.slice() }];
-    (b.entries || []).forEach((en) => rows.push({ name: en.name, me: false, rounds: en.r.slice(), bot: !!en.bot }));
+    (b.entries || []).forEach((en) => {
+      const rs = (en.r || []).slice();
+      rows.push({ name: en.name, me: false, rounds: rs, bot: !!en.bot, title: en.title || '', pending: !rs.length });
+    });
     const pend = pendingOppName(b);
     if (pend) rows.push({ name: pend, me: false, rounds: [], pending: true });
     rows.forEach((r) => {
@@ -1758,10 +1772,8 @@
       const tr = h('tr', r.me ? 'me' : r.pending ? 'waiting' : '');
       tr.appendChild(h('td', null, i === 0 && winner ? '🏆' : String(i + 1)));
       const nameCell = h('td', 'pname', r.name);
-      if (r.me) {
-        const tl = titleLabel(S.gems.title);
-        if (tl) nameCell.appendChild(h('span', 'lb-title', tl));
-      }
+      const tl = r.me ? titleLabel(S.gems.title) : (r.title || '');
+      if (tl) nameCell.appendChild(h('span', 'lb-title', tl));
       tr.appendChild(nameCell);
       for (let k = 0; k < 5; k++) {
         const rec = r.rounds[k];
@@ -1794,6 +1806,275 @@
     }
   }
 
+  /* ============================================================ live sync == */
+  /* 같은 방(#battle= 링크)에 들어온 두 사람의 기록을 서로 밀어 넣는다.
+     공개 MQTT 브로커에 웹소켓으로 붙어서, 방마다 `cube-arena/v1/room/<방>/<사람>`
+     토픽에 내 기록을 retain 으로 남기고 방 전체를 구독한다. 계정도 서버도 없고,
+     나가는 것은 닉네임·칭호·다섯 판 기록·종목뿐이다. 방 번호는 배틀마다 새로 만드는
+     무작위 값이라 남의 방과 섞이지 않는다. 브로커가 막히면 조용히 포기하고
+     예전처럼 결과 링크로 주고받는다(앱은 절대 멈추지 않는다). */
+  const LIVE_CID_KEY = 'cubeArena.cid';
+  const LIVE_BROKERS = [
+    /* 443 은 학교·회사·일부 통신사처럼 HTTPS 만 열어 두는 망에서도 통한다. */
+    { url: 'wss://public.cloud.shiftr.io:443/mqtt', user: 'public', pass: 'public' },
+    /* 공개 EMQX / HiveMQ 테스트 브로커 — 계정 없이 쓰는 예비 경로 */
+    { url: 'wss://broker.emqx.io:8084/mqtt' },
+    { url: 'wss://broker.hivemq.com:8884/mqtt' }
+  ];
+  const LIVE_LIB = [
+    'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js',
+    'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js'
+  ];
+  const LIVE = {
+    kind: '',      // 'mqtt'
+    mq: null,
+    room: '',
+    cid: '',
+    state: 'off',  // 'off' | 'connecting' | 'live'
+    gen: 0
+  };
+  let liveLibWait = null;
+
+  function liveCid() {
+    if (LIVE.cid) return LIVE.cid;
+    let id = '';
+    try { id = localStorage.getItem(LIVE_CID_KEY) || ''; } catch (e) { id = ''; }
+    if (!/^[a-z0-9]{6,16}$/.test(id)) {
+      /* 사람을 알아볼 수 없는 임의 값 — 개인정보가 아니라 "이 브라우저" 표시일 뿐이다. */
+      id = 'p' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+      try { localStorage.setItem(LIVE_CID_KEY, id); } catch (e) { /* 저장 못 해도 이번 판은 돈다 */ }
+    }
+    LIVE.cid = id;
+    return id;
+  }
+
+  function randRoom() {
+    const abc = 'abcdefghijkmnpqrstuvwxyz23456789';
+    let s = '';
+    for (let i = 0; i < 8; i++) s += abc.charAt(Math.floor(Math.random() * abc.length));
+    return s;
+  }
+
+  /* 방 번호가 없는 옛 링크는 종목+시드로 같은 방을 만들어 준다. */
+  function liveRoomOf(b) {
+    if (!b) return '';
+    if (b.room) return String(b.room);
+    return String(b.e) + '_' + (b.s >>> 0);
+  }
+
+  function liveTopic() {
+    return 'cube-arena/v1/room/' + LIVE.room + '/' + LIVE.cid;
+  }
+  function liveSubTopic() {
+    return 'cube-arena/v1/room/' + LIVE.room + '/+';
+  }
+
+  function liveSetState(s) {
+    LIVE.state = s;
+    const txt = s === 'live'
+      ? L('🟢 실시간 연결됨', '🟢 Live')
+      : s === 'connecting'
+        ? L('🟡 연결 중...', '🟡 Connecting…')
+        : L('⚪ 오프라인(링크 공유)', '⚪ Offline (share a link)');
+    ['#battleLiveRun', '#battleLiveBoard'].forEach((sel) => {
+      const el = $(sel);
+      if (!el) return;
+      el.textContent = txt;
+      el.classList.toggle('on', s === 'live');
+      el.classList.toggle('wait', s === 'connecting');
+      el.classList.toggle('off', s === 'off');
+      el.title = s === 'live'
+        ? L('상대 기록이 이 화면에 실시간으로 들어오고 있어요', 'Your rival’s times are streaming into this screen')
+        : s === 'connecting'
+          ? L('같은 방에 연결하는 중이에요', 'Joining the shared room')
+          : L('연결이 없어도 결과 링크로 기록을 주고받을 수 있어요', 'Without a connection you can still swap result links');
+    });
+  }
+
+  function livePayload(b) {
+    return {
+      cid: liveCid(),
+      name: String(b.name || 'Cuber').slice(0, 12),
+      title: titleLabel(S.gems.title) || '',
+      rounds: encRounds(b.rounds || []),
+      done: !!b.done,
+      e: b.e,
+      ts: Date.now()
+    };
+  }
+
+  function livePublish() {
+    const b = S.battle;
+    if (!b || LIVE.state !== 'live' || LIVE.kind !== 'mqtt' || !LIVE.mq) return;
+    try {
+      LIVE.mq.publish(liveTopic(), JSON.stringify(livePayload(b)), { qos: 1, retain: true });
+    } catch (e) {
+      /* 브로커가 끊겨도 다음 라운드에 다시 시도한다 */
+    }
+  }
+
+  function liveApply(p) {
+    const b = S.battle;
+    if (!b || !p || p.cid === LIVE.cid) return;
+    b.entries = b.entries || [];
+    let en = null;
+    for (let i = 0; i < b.entries.length; i++) {
+      if (b.entries[i].cid === p.cid) { en = b.entries[i]; break; }
+    }
+    const name = String(p.name || L('친구', 'Friend')).slice(0, 16);
+    if (p.leave) {
+      /* 방을 나간 사람은 리더보드에서 지운다. */
+      if (en) b.entries.splice(b.entries.indexOf(en), 1);
+      save();
+      if (b.done) renderBattleAll(); else { renderBattleBoard(); renderBattleVs(); }
+      return;
+    }
+    const rounds = decRounds(p.rounds || []);
+    if (!en) {
+      /* 결과 링크로 먼저 들어온 같은 이름의 기록이 있으면 그 줄을 이어 쓴다. */
+      for (let i = 0; i < b.entries.length; i++) {
+        const x = b.entries[i];
+        if (!x.cid && !x.bot && x.name === name) { en = x; break; }
+      }
+    }
+    if (!en) { en = { name: name, r: [], cid: p.cid, live: true }; b.entries.push(en); }
+    en.name = name;
+    en.r = rounds;
+    en.cid = p.cid;
+    en.live = true;
+    if (p.title) en.title = String(p.title).slice(0, 24); else delete en.title;
+    if (!b.opp) b.opp = name;
+    save();
+    /* 결과 화면이 떠 있으면 거기 상대 Ao5 까지 새로 그린다(타이머가 돌 때는 보드만). */
+    if (b.done) renderBattleAll(); else { renderBattleBoard(); renderBattleVs(); }
+  }
+
+  /* 방을 나갈 때 내 retained 기록을 지우고, 지워진 것을 확인한 뒤 소켓을 닫는다. */
+  function liveExit() {
+    const cl = LIVE.mq;
+    const topic = LIVE.room ? liveTopic() : '';
+    const cid = LIVE.cid;
+    LIVE.gen++;
+    LIVE.mq = null;
+    LIVE.kind = '';
+    LIVE.room = '';
+    if (cl && topic) {
+      const bye = JSON.stringify({ cid: cid, leave: true, ts: Date.now() });
+      try {
+        cl.publish(topic, bye, { qos: 1, retain: true }, () => { try { cl.end(true); } catch (e) { /* noop */ } });
+        setTimeout(() => { try { cl.end(true); } catch (e) { /* noop */ } }, 1500);
+      } catch (e) { try { cl.end(true); } catch (e2) { /* noop */ } }
+    } else if (cl) {
+      try { cl.end(true); } catch (e) { /* noop */ }
+    }
+    liveSetState('off');
+  }
+
+  function loadMqttLib() {
+    if (window.mqtt && window.mqtt.connect) return Promise.resolve(window.mqtt);
+    if (liveLibWait) return liveLibWait;
+    liveLibWait = new Promise((resolve, reject) => {
+      let i = 0;
+      const next = () => {
+        if (i >= LIVE_LIB.length) { liveLibWait = null; reject(new Error('mqtt lib')); return; }
+        const s = document.createElement('script');
+        s.src = LIVE_LIB[i++];
+        s.async = true;
+        s.onload = () => ((window.mqtt && window.mqtt.connect) ? resolve(window.mqtt) : next());
+        s.onerror = next;
+        document.head.appendChild(s);
+      };
+      next();
+    });
+    return liveLibWait;
+  }
+
+  function liveStop(silent) {
+    LIVE.gen++;
+    const cl = LIVE.mq;
+    LIVE.mq = null;
+    LIVE.kind = '';
+    LIVE.room = '';
+    if (cl) { try { cl.end(true); } catch (e) { /* 이미 닫힌 소켓 */ } }
+    if (!silent) liveSetState('off');
+  }
+
+  /* 배틀에 들어갈 때마다 방에 붙는다. 이미 붙어 있으면 현재 기록만 다시 보낸다. */
+  function liveStart(b) {
+    const room = liveRoomOf(b);
+    if (!room) { liveStop(); return; }
+    if (LIVE.room === room && LIVE.state === 'live' && LIVE.mq) { livePublish(); return; }
+    if (LIVE.room === room && LIVE.state === 'connecting') return;
+    liveStop(true);
+    LIVE.room = room;
+    liveCid();
+    const gen = LIVE.gen;
+    liveSetState('connecting');
+    liveTry(0, gen);
+  }
+
+  function liveTry(i, gen) {
+    if (gen !== LIVE.gen || !LIVE.room) return;
+    if (navigator.onLine === false) { liveSetState('off'); return; }   // 비행기 모드 등
+    if (i >= LIVE_BROKERS.length) { liveSetState('off'); return; }
+    const cfg = LIVE_BROKERS[i];
+    loadMqttLib().then((lib) => {
+      if (gen !== LIVE.gen || !LIVE.room) return;
+      let done = false;
+      let cl = null;
+      let guard = 0;
+      const nextBroker = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(guard);
+        if (cl) { try { cl.end(true); } catch (e) { /* noop */ } }
+        if (gen === LIVE.gen && LIVE.room) liveTry(i + 1, gen);
+      };
+      try {
+        cl = lib.connect(cfg.url, {
+          clientId: 'ca' + liveCid().slice(-6) + Math.random().toString(36).slice(2, 6),
+          username: cfg.user,
+          password: cfg.pass,
+          clean: true,
+          reconnectPeriod: 0,
+          connectTimeout: 3500,
+          keepalive: 30,
+          protocolVersion: 4
+        });
+      } catch (e) { nextBroker(); return; }
+      guard = setTimeout(nextBroker, 4000);
+      cl.on('connect', () => {
+        if (done || gen !== LIVE.gen) { try { cl.end(true); } catch (e) { /* noop */ } return; }
+        done = true;
+        clearTimeout(guard);
+        LIVE.kind = 'mqtt';
+        LIVE.mq = cl;
+        cl.on('message', (tp, payload) => {
+          if (gen !== LIVE.gen) return;
+          let p = null;
+          try { p = JSON.parse(payload.toString()); } catch (e) { return; }
+          liveApply(p);
+        });
+        cl.on('close', () => {
+          if (gen !== LIVE.gen || LIVE.mq !== cl) return;
+          LIVE.mq = null;
+          LIVE.kind = '';
+          if (!LIVE.room) return;
+          liveSetState('connecting');
+          setTimeout(() => {
+            if (gen === LIVE.gen && LIVE.room && !LIVE.mq) liveTry(0, gen);
+          }, 2000);
+        });
+        cl.subscribe(liveSubTopic(), { qos: 1 });
+        liveSetState('live');
+        livePublish();   // 새로고침·재입장해도 내 기록이 방에 남아 있게
+      });
+      cl.on('error', () => { if (!done) nextBroker(); });
+    }).catch(() => {
+      if (gen === LIVE.gen) liveTry(i + 1, gen);
+    });
+  }
+
   function addFriendResult(payload) {
     const b = S.battle;
     if (!b) return;
@@ -1822,6 +2103,7 @@
         S.battle = {
           e: p.e,
           s: seed,
+          room: p.r ? String(p.r).slice(0, 32) : String(p.e) + '_' + seed,
           name: (S.profile.name || 'Cuber').slice(0, 12),
           host: hostName,
           ai: ai,
@@ -1842,6 +2124,7 @@
             : hostName + L('님의 배틀에 참가했어요 · ', '’s battle joined · ') + BY_ID[p.e].name,
           'good', '🤝');
         startBattleRun();
+        liveStart(S.battle);
         goClean();
       }
     } else if (hash.indexOf('#result=') === 0) {
@@ -1853,6 +2136,7 @@
           S.battle = {
             e: p.e,
             s: p.s >>> 0,
+            room: p.k ? String(p.k).slice(0, 32) : String(p.e) + '_' + (p.s >>> 0),
             name: (S.profile.name || 'Cuber').slice(0, 12),
             host: null,
             opp: friendName,
@@ -1875,6 +2159,7 @@
           renderBattleAll();
           toast(friendName + '님의 결과를 불러왔어요', 'good', '📥');
         }
+        liveStart(S.battle);
         goClean();
       }
     }
@@ -2922,6 +3207,7 @@
       $('#joinLink').value = '';
     });
     $('#btnBattleAgain').addEventListener('click', () => {
+      liveExit();
       S.battle = null;
       save();
       renderBattleAll();
@@ -2932,6 +3218,7 @@
     });
     $('#btnBattleQuit').addEventListener('click', () => {
       if (battleTimer) battleTimer.reset();
+      liveExit();
       S.battle = null;
       save();
       renderBattleAll();
@@ -2944,6 +3231,7 @@
     if (boardReset) {
       boardReset.addEventListener('click', () => {
         if (battleTimer) battleTimer.reset();
+        liveExit();
         S.battle = null;
         save();
         renderBattleAll();
@@ -2970,6 +3258,7 @@
         S.battle = {
           e: p.e,
           s: p.s >>> 0,
+          room: p.k ? String(p.k).slice(0, 32) : String(p.e) + '_' + (p.s >>> 0),
           name: S.profile.name || 'Cuber',
           host: null,
           opp: (p.n || L('친구', 'Friend')).slice(0, 16),
@@ -2979,6 +3268,7 @@
         };
       }
       addFriendResult(p);
+      liveStart(S.battle);
       $('#friendResultLink').value = '';
       if (!S.battle.done && !S.battle.rounds.length) {
         startBattleRun();
@@ -3228,6 +3518,7 @@
       renderSplitBar(null);
       /* a running battle timer keeps its round — only the text is repainted */
       if (!(battleTimer && battleTimer.isBusy())) renderBattleAll();
+      liveSetState(LIVE.state);
       renderStats();
       renderChal();
       sdRender();
@@ -3245,6 +3536,9 @@
     renderBattleAll();
     sdRender();
     handleHash();
+    if (S.battle) liveStart(S.battle);   // 새로고침해도 진행 중인 방에 그대로 붙는다
+    window.addEventListener('online', () => { if (S.battle) liveStart(S.battle); });
+    window.addEventListener('offline', () => { if (LIVE.state !== 'off') liveSetState('off'); });
     window.addEventListener('hashchange', handleHash);
     // a fresh record for "오늘 처음 방문" toast
     if ((S.quests.streak | 0) === 1 && !S.flags.welcomed) {

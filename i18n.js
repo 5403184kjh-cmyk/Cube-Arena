@@ -78,6 +78,10 @@
     '결과 링크 복사': 'Copy result link',
     '결과 카드 저장 (PNG)': 'Save result card (PNG)',
     '새 배틀 만들기': 'New battle',
+    '공개 중계 · 계정 없음': 'Public relay · no account',
+    '🟢 실시간 연결됨': '🟢 Live',
+    '🟡 연결 중...': '🟡 Connecting…',
+    '⚪ 오프라인(링크 공유)': '⚪ Offline (share a link)',
     '🏆 배틀 리더보드': '🏆 Battle leaderboard',
     '친구 결과 불러오기': 'Load friend’s result',
     '불러오기': 'Load',
@@ -265,7 +269,7 @@
     battleLead:
       'Pick an event and create a link, and you get an invite link with <b>the same 5 scrambles</b> inside. ' +
       'No friend to send it to? Take on an <b>AI rival</b> right away. ' +
-      'Their times show up on the leaderboard instantly, and when you are both done you can compare side by side from the result link.',
+      'Two people who open the same link <b>see each other’s times on the leaderboard as each round is finished</b>, and when you are both done you can compare side by side from the result link.',
     clockHint:
       'Raise the <b>pins</b> over a corner and turn its <b>wheel</b> — that corner turns together with the dials beside it and the middle. ' +
       'Raise every pin and the whole face turns. Line all 18 dials up to 12 o’clock and you have cleared it!',
@@ -295,7 +299,7 @@
       '  <div class="g-head"><span class="g-ico" aria-hidden="true">🤝</span><h3>How to battle a friend</h3></div>',
       '  <div class="g-steps">',
       '    <div class="g-step"><span class="g-num">1</span><p>The host picks the <b>event and opponent</b>, taps <b>[Create battle link]</b> and sends the link by KakaoTalk or Discord. Pick an <b>AI rival</b> (Challenger to Grandmaster) and you can skip the link and go straight in with <b>[Quick start]</b>.</p></div>',
-      '    <div class="g-step"><span class="g-num">2</span><p>When your friend opens the link, the duel starts on <b>the exact same 5 scrambles</b>. Their name shows on the <b>VS badge</b> above the battle card and on the leaderboard, marked <b>waiting</b> until they post a time.</p></div>',
+      '    <div class="g-step"><span class="g-num">2</span><p>When your friend opens the link, the duel starts on <b>the exact same 5 scrambles</b>. Their name shows on the <b>VS badge</b> above the battle card and on the leaderboard, marked <b>waiting</b> until they post a time. When the chip on the battle card reads <b>🟢 Live</b> you are both in the same room, so <b>every round either of you finishes appears on both leaderboards</b> — no result link to send back and forth.</p></div>',
       '    <div class="g-step"><span class="g-num">3</span><p>Open a friend’s <b>result link</b> and their five times are already on the leaderboard while you start from <b>round 1</b>. Once you are both done, compare the <b>Ao5 result</b> and the <b>round-by-round gap</b>, then save it as a <b>result card PNG</b>!</p></div>',
       '  </div>',
       '</section>',
@@ -338,6 +342,7 @@
       '  <div class="g-head"><span class="g-ico" aria-hidden="true">🔒</span><h3>About your data</h3></div>',
       '  <ul class="g-list">',
       '    <li>Every record lives only in <b>your phone’s browser (localStorage)</b> and <b>is never sent to a server</b>. No account, no sign-in.</li>',
+      '    <li>The one exception is a friend battle: while you are in the same room, only your <b>nickname, title and five times</b> travel over a free public MQTT relay to that room, and the room id is a fresh random value for every battle so it cannot mix with anyone else’s. Contacts, location and account details are never sent, and your record is removed from the room when you leave the battle.</li>',
       '    <li>Clearing your browser data clears your records too, so check once before <b>Stats → Settings → Erase all records</b>.</li>',
       '  </ul>',
       '</section>',

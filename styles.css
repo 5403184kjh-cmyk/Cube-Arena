@@ -291,6 +291,8 @@ body::before {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
 .card-head h2 {
   margin: 0;
@@ -337,6 +339,20 @@ p.hint b { color: var(--text-dim); }
   color: var(--pink);
   background: color-mix(in srgb, var(--pink) 12%, transparent);
 }
+/* 라이브 동기화 상태 칩 — 초록이면 같은 방에 붙어 실시간으로 기록이 오고 있다 */
+.tag.live { font-size: 10px; letter-spacing: 0; }
+.tag.live.on {
+  border-color: color-mix(in srgb, var(--good) 55%, transparent);
+  color: var(--good);
+  background: color-mix(in srgb, var(--good) 16%, transparent);
+  box-shadow: 0 0 14px -6px color-mix(in srgb, var(--good) 90%, transparent);
+}
+.tag.live.wait {
+  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 13%, transparent);
+}
+.tag.live.off { border-color: transparent; background: var(--track); color: var(--muted); }
 
 /* --------------------------------------------------------------- buttons -- */
 .btn {
@@ -630,6 +646,8 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
   line-height: 20px;
 }
 .battle-round { font-size: 12px; font-weight: 700; color: var(--muted); font-family: var(--mono); }
+.battle-head-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; row-gap: 6px; }
+.board-head-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; row-gap: 6px; margin-left: auto; }
 .dots { display: flex; gap: 5px; }
 .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--track); }
 .dots i.on { background: linear-gradient(120deg, var(--accent), var(--accent-2)); box-shadow: 0 0 10px -1px var(--accent); }
