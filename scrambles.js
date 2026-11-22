@@ -36,33 +36,33 @@
   /* format: ao5 = average of 5, mo3 = mean of 3, single = best of attempts */
   const EVENTS = [
     {
-      id: 'fto', name: 'FTO', ko: '정팔면체', group: 'new',
+      id: 'fto', name: 'FTO', ko: '정팔면체', en: 'Octahedron', group: 'new',
       badge: 'NEW 2027', badgeKind: 'new', format: 'ao5', preview: 'fto',
       gen: 'fto', xp: 18, hot: true,
       note: '2027 시즌부터 WCA 공식 종목. 25수 스크램블 · Ao5'
     },
     {
-      id: 'clock', name: 'Clock', ko: '클락 · 레거시', group: 'new',
+      id: 'clock', name: 'Clock', ko: '클락 · 레거시', en: 'Clock · legacy', group: 'new',
       badge: '~2027.07', badgeKind: 'legacy', format: 'ao5', preview: 'clock',
       gen: 'clock', xp: 14,
       note: '2027년 7월까지 공식 종목. 굿바이 클락!'
     },
-    { id: '333', name: '3x3x3', ko: '333', group: 'cube', format: 'ao5', preview: 'cube3', gen: 'cube3', xp: 10 },
-    { id: '222', name: '2x2x2', ko: '222', group: 'cube', format: 'ao5', preview: 'cube2', gen: 'cube2', xp: 8 },
-    { id: '444', name: '4x4x4', ko: '444', group: 'cube', format: 'ao5', preview: 'cube4', gen: 'cube4', xp: 12 },
-    { id: '555', name: '5x5x5', ko: '555', group: 'big', format: 'ao5', gen: 'cube5', xp: 14 },
-    { id: '666', name: '6x6x6', ko: '666', group: 'big', format: 'mo3', gen: 'cube6', xp: 16 },
-    { id: '777', name: '7x7x7', ko: '777', group: 'big', format: 'mo3', gen: 'cube7', xp: 18 },
-    { id: '333oh', name: '3x3 OH', ko: '한손', group: 'cube', format: 'ao5', gen: 'cube3', xp: 12 },
-    { id: '333bf', name: '3x3 BLD', ko: '눈감고 맞추기', group: 'blind', format: 'single', gen: 'cube3', xp: 22 },
-    { id: '333fm', name: '3x3 FMC', ko: '최소 회전수', group: 'other', format: 'mo3', gen: 'fmc', xp: 20 },
-    { id: '333mbf', name: '3x3 MBLD', ko: '다중 블라인드', group: 'blind', format: 'single', gen: 'mbld', xp: 24 },
-    { id: 'pyram', name: 'Pyraminx', ko: '피라밍크스', group: 'other', format: 'ao5', preview: 'pyra', gen: 'pyra', xp: 8 },
-    { id: 'skewb', name: 'Skewb', ko: '스큐브', group: 'other', format: 'ao5', preview: 'skewb', gen: 'skewb', xp: 8 },
-    { id: 'sq1', name: 'Square-1', ko: '스퀘어원', group: 'other', format: 'ao5', gen: 'sq1', xp: 14 },
-    { id: 'minx', name: 'Megaminx', ko: '메가밍크스', group: 'other', format: 'ao5', gen: 'minx', xp: 16 },
-    { id: '444bf', name: '4x4 BLD', ko: '4x4 눈감고', group: 'blind', format: 'single', gen: 'cube4', xp: 26 },
-    { id: '555bf', name: '5x5 BLD', ko: '5x5 눈감고', group: 'blind', format: 'single', gen: 'cube5', xp: 30 }
+    { id: '333', name: '3x3x3', ko: '333', en: '3x3', group: 'cube', format: 'ao5', preview: 'cube3', gen: 'cube3', xp: 10 },
+    { id: '222', name: '2x2x2', ko: '222', en: '2x2', group: 'cube', format: 'ao5', preview: 'cube2', gen: 'cube2', xp: 8 },
+    { id: '444', name: '4x4x4', ko: '444', en: '4x4', group: 'cube', format: 'ao5', preview: 'cube4', gen: 'cube4', xp: 12 },
+    { id: '555', name: '5x5x5', ko: '555', en: '5x5', group: 'big', format: 'ao5', gen: 'cube5', xp: 14 },
+    { id: '666', name: '6x6x6', ko: '666', en: '6x6', group: 'big', format: 'mo3', gen: 'cube6', xp: 16 },
+    { id: '777', name: '7x7x7', ko: '777', en: '7x7', group: 'big', format: 'mo3', gen: 'cube7', xp: 18 },
+    { id: '333oh', name: '3x3 OH', ko: '한손', en: 'One-handed', group: 'cube', format: 'ao5', gen: 'cube3', xp: 12 },
+    { id: '333bf', name: '3x3 BLD', ko: '눈감고 맞추기', en: 'Blindfolded', group: 'blind', format: 'single', gen: 'cube3', xp: 22 },
+    { id: '333fm', name: '3x3 FMC', ko: '최소 회전수', en: 'Fewest moves', group: 'other', format: 'mo3', gen: 'fmc', xp: 20 },
+    { id: '333mbf', name: '3x3 MBLD', ko: '다중 블라인드', en: 'Multi-blind', group: 'blind', format: 'single', gen: 'mbld', xp: 24 },
+    { id: 'pyram', name: 'Pyraminx', ko: '피라밍크스', en: 'Pyraminx', group: 'other', format: 'ao5', preview: 'pyra', gen: 'pyra', xp: 8 },
+    { id: 'skewb', name: 'Skewb', ko: '스큐브', en: 'Skewb', group: 'other', format: 'ao5', preview: 'skewb', gen: 'skewb', xp: 8 },
+    { id: 'sq1', name: 'Square-1', ko: '스퀘어원', en: 'Square-1', group: 'other', format: 'ao5', gen: 'sq1', xp: 14 },
+    { id: 'minx', name: 'Megaminx', ko: '메가밍크스', en: 'Megaminx', group: 'other', format: 'ao5', gen: 'minx', xp: 16 },
+    { id: '444bf', name: '4x4 BLD', ko: '4x4 눈감고', en: '4x4 blind', group: 'blind', format: 'single', gen: 'cube4', xp: 26 },
+    { id: '555bf', name: '5x5 BLD', ko: '5x5 눈감고', en: '5x5 blind', group: 'blind', format: 'single', gen: 'cube5', xp: 30 }
   ];
 
   const BY_ID = {};

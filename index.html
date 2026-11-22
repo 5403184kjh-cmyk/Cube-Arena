@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="styles.css?v=4">
+<link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
 <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -33,6 +33,12 @@
       </button>
       <button class="chip streak-chip" id="hudStreak" type="button" aria-label="연속 출석">
         <span aria-hidden="true">🔥</span><b id="hudStreakText">0</b>
+      </button>
+      <button class="chip gem-chip" id="hudGems" type="button" aria-label="보석 상점 열기">
+        <span aria-hidden="true">💎</span><b id="hudGemsText">0</b>
+      </button>
+      <button class="lang-btn" id="btnLang" type="button" aria-label="영어로 바꾸기" title="KO / EN">
+        <span class="lg-opt" data-lang-opt="ko">KO</span><i>/</i><span class="lg-opt" data-lang-opt="en">EN</span>
       </button>
       <button class="icon-btn" id="btnSound" type="button" aria-label="효과음 끄기">🔊</button>
       <button class="icon-btn" id="btnTheme" type="button" aria-label="테마 바꾸기">🌙</button>
@@ -121,7 +127,7 @@
 
           <div class="card solves-card">
             <div class="card-head">
-              <h2>기록 <small id="solveCount">0</small></h2>
+              <h2>솔브 <small id="solveCount">0</small></h2>
               <button class="btn ghost sm" id="btnClearSolves" type="button">초기화</button>
             </div>
             <ol class="solve-list" id="solveList"></ol>
@@ -138,7 +144,7 @@
             <h2>🤝 프렌드 배틀</h2>
             <span class="tag soft">서버 없이 링크로</span>
           </div>
-          <p class="muted">
+          <p class="muted" data-i18n-html="battleLead">
             종목을 고르고 링크를 만들면 <b>같은 스크램블 5개</b>가 담긴 초대 링크가 만들어집니다.
             링크를 보낼 친구가 없어도 <b>AI 라이벌</b>과 바로 겨룰 수 있어요.
             상대 기록은 리더보드에 바로 뜨고, 끝나면 결과 링크로 나란히 비교할 수 있습니다.
@@ -267,7 +273,7 @@
             <button class="btn sm" id="cgFlip" type="button">뒤집기 y2</button>
             <span class="muted xs" id="cgBest"></span>
           </div>
-          <p class="hint">
+          <p class="hint" data-i18n-html="clockHint">
             <b>핀</b>을 올린 코너의 <b>휠</b>을 돌리면 그 코너·양옆 다이얼·가운데가 함께 돌아갑니다.
             핀을 모두 올리면 전체가 돌아가요. 18개 다이얼을 모두 12시에 맞추면 클리어!
           </p>
@@ -325,11 +331,12 @@
               <div class="xp-label" id="heroXpText">0 XP</div>
             </div>
           </div>
+          <div class="title-badge" id="heroTitle" hidden></div>
           <div class="hero-stats">
             <div><b id="heroSolves">0</b><span>총 솔브</span></div>
             <div><b id="heroStreak">0</b><span>연속 출석</span></div>
             <div><b id="heroBadges">0</b><span>업적</span></div>
-            <div><b id="heroEvents">0</b><span>종목</span></div>
+            <div><b id="heroEvents">0</b><span>종목 수</span></div>
           </div>
         </div>
 
@@ -341,6 +348,15 @@
         <div class="card span2">
           <div class="card-head"><h2>업적 도감</h2><span class="tag soft" id="badgeCount">0 / 0</span></div>
           <div class="badge-grid" id="badgeGrid"></div>
+        </div>
+
+        <div class="card span2">
+          <div class="card-head"><h2>💎 보석 상점</h2><span class="tag soft gem-tag" id="shopBalance">0 💎</span></div>
+          <p class="muted small" id="shopLead">보석을 모아 스킨과 칭호를 해금하세요</p>
+          <div class="row">
+            <button class="btn primary sm" id="btnOpenShop" type="button">상점 열기</button>
+            <span class="muted xs" id="shopNow"></span>
+          </div>
         </div>
 
         <div class="card span2">
@@ -382,7 +398,7 @@
       <h2 id="guideTitle">📖 사용 설명서</h2>
       <button class="icon-btn" id="guideClose" type="button" aria-label="사용 설명서 닫기">✕</button>
     </div>
-    <div class="modal-body guide-body" id="guideBody" tabindex="0">
+    <div class="modal-body guide-body" id="guideBody" tabindex="0" data-i18n-html="guideBody">
       <p class="g-lead" id="guideLead">타이머 · 배틀 · 미니게임, 아래 6가지만 알면 다 쓸 수 있어요.</p>
 
       <section class="g-sec">
@@ -443,8 +459,9 @@
   </div>
 </div>
 
-<script src="scrambles.js?v=4"></script>
-<script src="puzzles.js?v=4"></script>
-<script src="app.js?v=4"></script>
+<script src="i18n.js?v=5"></script>
+<script src="scrambles.js?v=5"></script>
+<script src="puzzles.js?v=5"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

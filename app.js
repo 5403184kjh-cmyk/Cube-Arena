@@ -10,6 +10,9 @@
   const EVENTS = SCR.EVENTS;
   const BY_ID = SCR.BY_ID;
 
+  const I18N = window.I18N || { lang: 'ko', L: (ko) => ko, t: (ko) => ko, render: () => {}, onChange: () => {} };
+  const L = (ko, en) => I18N.L(ko, en);
+
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   function h(tag, cls, text) {
@@ -42,6 +45,16 @@
       stats: { solves: 0, pbs: 0, xpTotal: 0, events: {} },
       battle: null,
       minigame: { clockBest: null, chalBest: null, chalLevel: 1 },
+      gems: {
+        n: 0,
+        earned: 0,
+        spent: 0,
+        skins: ['cyber'],
+        skin: 'cyber',
+        titles: ['none'],
+        title: 'none',
+        daily: ''
+      },
       flags: {}
     };
   }
@@ -63,6 +76,9 @@
     out.stats = Object.assign(base.stats, raw.stats || {});
     out.quests = Object.assign(base.quests, raw.quests || {});
     out.minigame = Object.assign(base.minigame, raw.minigame || {});
+    out.gems = Object.assign(base.gems, raw.gems || {});
+    if (!Array.isArray(out.gems.skins) || !out.gems.skins.length) out.gems.skins = ['cyber'];
+    if (!Array.isArray(out.gems.titles) || !out.gems.titles.length) out.gems.titles = ['none'];
     out.records = raw.records && typeof raw.records === 'object' ? raw.records : {};
     out.ach = raw.ach && typeof raw.ach === 'object' ? raw.ach : {};
     return out;
@@ -633,6 +649,7 @@
       Confetti.fire(110);
       Sound.pb();
       toast('새 PB! ' + fmt(value) + ' · ' + BY_ID[evId].name, 'pb', '🏆');
+      addGems(10, L('PB 갱신', 'new personal best'));
     }
 
     const ev = BY_ID[evId];
@@ -889,6 +906,23 @@
     ]
   };
 
+  const QUEST_EN = {
+    any3: 'Solve any event 3 times',
+    any5: 'Solve any event 5 times',
+    distinct2: 'Solve 2 different events',
+    fto3: 'Solve FTO 3 times',
+    clock2: 'Solve Clock 2 times',
+    pyra3: 'Solve Pyraminx 3 times',
+    skewb3: 'Solve Skewb 3 times',
+    sub30: '3x3 under 30s once',
+    sub60: '3x3 under 1 minute once',
+    battle1: 'Finish 1 friend battle',
+    minigame: 'Clear a mini-game once'
+  };
+  function questLabel(q) {
+    return L(q.label, QUEST_EN[q.id] || q.label);
+  }
+
   function buildQuests(dateStr) {
     const rng = SCR.mulberry32(SCR.hashStr('quest|' + dateStr));
     const pickFrom = (arr) => arr[Math.floor(rng() * arr.length)];
@@ -914,6 +948,16 @@
     S.quests.items = buildQuests(today);
     S.quests.todayEvents = {};
     save();
+    if (S.gems.daily !== today) {
+      S.gems.daily = today;
+      const bonus = Math.min(10, Math.max(0, ((S.quests.streak | 0) - 1) * 2));
+      setTimeout(() => {
+        addGems(10 + bonus, [
+          L('일일 첫 출석', 'daily check-in'),
+          bonus ? L('연속 보너스', 'streak bonus') + ' +' + bonus : null
+        ]);
+      }, 420);
+    }
   }
 
   function questOnSolve(evId, value) {
@@ -936,8 +980,9 @@
       if (it.progress >= it.target && !it.done) {
         it.done = true;
         changed = true;
-        toast('퀘스트 달성! ' + it.label, 'good', it.icon);
+        toast('퀘스트 달성! ' + questLabel(it), 'good', it.icon);
         Sound.win();
+        addGems(questGems(it), L('퀘스트 완료', 'quest complete'));
       }
     });
     if (changed) save();
@@ -951,8 +996,9 @@
       it.progress = Math.min(it.target, it.progress + 1);
       if (it.progress >= it.target) {
         it.done = true;
-        toast('퀘스트 달성! ' + it.label, 'good', it.icon);
+        toast('퀘스트 달성! ' + questLabel(it), 'good', it.icon);
         Sound.win();
+        addGems(questGems(it), L('퀘스트 완료', 'quest complete'));
       }
     });
     renderQuests();
@@ -967,7 +1013,7 @@
       const row = h('div', 'quest' + (q.done ? ' done' : ''));
       row.appendChild(h('span', 'q-ico', q.icon || '✦'));
       const main = h('div', 'q-main');
-      main.appendChild(h('div', 'q-title', q.label));
+      main.appendChild(h('div', 'q-title', questLabel(q)));
       const bar = h('div', 'q-bar');
       const fill = h('i');
       fill.style.width = Math.round((Math.min(q.progress, q.target) / q.target) * 100) + '%';
@@ -1011,6 +1057,32 @@
     { id: 'night', icon: '🌙', name: '올빼미', desc: '자정~4시 솔브', check: () => !!S.flags.nightOwl }
   ];
 
+  const ACH_EN = {
+    first: ['First solve', 'Record one solve of any event'],
+    pb: ['First PB', 'Beat your personal best'],
+    fto: ['FTO pioneer', 'Solve FTO 5 times'],
+    clock: ['Goodbye Clock', 'Solve Clock once'],
+    ao5: ['Ao5 master', 'Five solves in one event'],
+    sub20: ['Sub-20', '3x3 under 20 seconds'],
+    sub10: ['Sub-10', '3x3 under 10 seconds'],
+    battleJoin: ['Battle joined', 'Create or join a battle link'],
+    battleWin: ['Battle won', 'Top of the leaderboard'],
+    clockGame: ['Clock conqueror', 'Clear the clock simulator'],
+    challenge: ['Memory king', 'Clear the scramble challenge'],
+    solves50: ['50 solves', '50 solves in total'],
+    solves200: ['200 solves', '200 solves in total'],
+    allround: ['All-rounder', '5 different events'],
+    streak7: ['7-day streak', 'Seven days in a row'],
+    lv10: ['Lv.10', 'Reach level 10'],
+    night: ['Night owl', 'A solve between midnight and 4am']
+  };
+  function achName(a) {
+    return L(a.name, (ACH_EN[a.id] || [])[0] || a.name);
+  }
+  function achDesc(a) {
+    return L(a.desc, (ACH_EN[a.id] || [])[1] || a.desc);
+  }
+
   function checkAchievements() {
     let got = false;
     ACH.forEach((a) => {
@@ -1024,8 +1096,9 @@
       if (ok) {
         S.ach[a.id] = Date.now();
         got = true;
-        toast('업적 달성 · ' + a.name, 'good', a.icon);
+        toast('업적 달성 · ' + achName(a), 'good', a.icon);
         Sound.win();
+        addGems(20, L('업적 달성', 'achievement'));
       }
     });
     if (got) {
@@ -1033,6 +1106,295 @@
       renderHud();
       if (viewNow === 'stats') renderStats();
       save();
+    }
+  }
+
+  /* ================================================================= gems == */
+  /* 💎 Gems are the app's own free currency: they come from playing, and they
+     buy two cosmetic tracks — neon skins (the accent colours of the whole UI)
+     and profile titles (shown beside the nickname on the battle board). */
+  const SKINS = [
+    { id: 'cyber', name: 'Cyber Blue', ko: '사이버 블루', price: 0, accent: '#22d3ee', accent2: '#a855f7', light: ['#0e9bb4', '#7c3aed'] },
+    { id: 'gold', name: 'Gold Rush', ko: '골드 러시', price: 80, accent: '#fbbf24', accent2: '#f59e0b', light: ['#b45309', '#d97706'] },
+    { id: 'matrix', name: 'Matrix Green', ko: '매트릭스 그린', price: 100, accent: '#34d399', accent2: '#10b981', light: ['#047857', '#0f766e'] },
+    { id: 'sunset', name: 'Sunset Neon', ko: '선셋 네온', price: 120, accent: '#fb7185', accent2: '#f97316', light: ['#e11d48', '#c2410c'] },
+    { id: 'royal', name: 'Royal Purple', ko: '로열 퍼플', price: 150, accent: '#c084fc', accent2: '#6366f1', light: ['#7c3aed', '#4338ca'] },
+    { id: 'crimson', name: 'Crimson Blaze', ko: '크림슨 블레이즈', price: 180, accent: '#f43f5e', accent2: '#ef4444', light: ['#be123c', '#b91c1c'] }
+  ];
+  const TITLES = [
+    { id: 'none', icon: '', ko: '칭호 없음', en: 'No title', price: 0 },
+    { id: 'diamond', icon: '💎', ko: '다이아몬드', en: 'Diamond', price: 60 },
+    { id: 'speedster', icon: '⚡', ko: '스피드스터', en: 'Speedster', price: 80 },
+    { id: 'clockking', icon: '👑', ko: '클락 킹', en: 'Clock King', price: 100 },
+    { id: 'ftopioneer', icon: '🧊', ko: 'FTO 개척자', en: 'FTO Pioneer', price: 80 },
+    { id: 'battleace', icon: '🔥', ko: '배틀 에이스', en: 'Battle Ace', price: 120 }
+  ];
+  const GEM_EARN = [
+    ['일일 첫 출석', 'Daily check-in', 10],
+    ['오늘의 퀘스트', 'Today’s quests', 25],
+    ['PB 갱신', 'New PB', 10],
+    ['배틀 완주 / 승리', 'Battle finish / win', 25],
+    ['서든데스 5R · 클락 클리어', 'Sudden death 5R · clock clear', 15],
+    ['업적 달성', 'Achievement', 20]
+  ];
+
+  function skinObj(id) {
+    return SKINS.filter((s) => s.id === id)[0] || SKINS[0];
+  }
+  function titleObj(id) {
+    return TITLES.filter((t) => t.id === id)[0] || TITLES[0];
+  }
+  function skinLabel(id) {
+    const s = skinObj(id);
+    return L(s.ko, s.name);
+  }
+  function titleLabel(id) {
+    const t = titleObj(id);
+    return t.id === 'none' ? '' : t.icon + ' ' + L(t.ko, t.en);
+  }
+  function gemN() {
+    return S.gems.n | 0;
+  }
+  function ownedSkin(id) {
+    return (S.gems.skins || []).indexOf(id) !== -1;
+  }
+  function ownedTitle(id) {
+    return (S.gems.titles || []).indexOf(id) !== -1;
+  }
+
+  function addGems(n, reason) {
+    if (!n) return;
+    S.gems.n = (S.gems.n | 0) + n;
+    S.gems.earned = (S.gems.earned | 0) + n;
+    renderGems();
+    gemToast(n, reason);
+    if (Sound.ctx) {
+      Sound.tone(1180, 0.08, 'triangle', 0.05);
+      Sound.tone(1560, 0.12, 'triangle', 0.045, 0.08);
+    }
+    save();
+  }
+
+  /* Each piece of the toast is its own text node so the KO/EN switch can
+     translate the reason without swallowing the amount. */
+  function gemToast(n, reason) {
+    const box = $('#toasts');
+    if (!box) return;
+    const t = h('div', 'toast gem');
+    t.appendChild(h('span', 't-ico', '💎'));
+    t.appendChild(h('span', 'g-amt', '+' + n + ' 💎'));
+    (Array.isArray(reason) ? reason : [reason]).forEach((r) => {
+      if (r) t.appendChild(h('span', 'g-reason', r));
+    });
+    box.appendChild(t);
+    setTimeout(() => {
+      t.classList.add('out');
+      setTimeout(() => t.remove(), 300);
+    }, 2600);
+    while (box.children.length > 4) box.firstChild.remove();
+    const chip = $('#hudGemsText');
+    if (chip) {
+      chip.classList.remove('new-gem');
+      void chip.offsetWidth;
+      chip.classList.add('new-gem');
+    }
+  }
+  function questGems(it) {
+    return clamp(Math.round((it.xp || 60) / 4), 15, 25);
+  }
+
+  function hexA(hex, a) {
+    const h = String(hex).replace('#', '');
+    const n = parseInt(h.length === 3 ? h.replace(/(.)/g, '$1$1') : h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  function applyLook() {
+    const root = document.documentElement;
+    const sk = skinObj(S.gems.skin);
+    const lightOn = S.settings.theme === 'light';
+    const pair = sk.id === 'cyber' ? null : lightOn ? sk.light : [sk.accent, sk.accent2];
+    if (!pair) {
+      root.style.removeProperty('--accent');
+      root.style.removeProperty('--accent-2');
+      root.style.removeProperty('--glow');
+    } else {
+      root.style.setProperty('--accent', pair[0]);
+      root.style.setProperty('--accent-2', pair[1]);
+      root.style.setProperty('--glow', '0 0 60px -10px ' + hexA(pair[0], lightOn ? 0.32 : 0.5));
+    }
+    root.dataset.skin = sk.id;
+    root.dataset.title = S.gems.title || 'none';
+  }
+
+  function renderGems() {
+    const n = gemN();
+    const hud = $('#hudGemsText');
+    if (hud) hud.textContent = n;
+    const bal = $('#shopBalance');
+    if (bal) bal.textContent = n + ' 💎';
+    const now = $('#shopNow');
+    if (now) {
+      now.textContent =
+        L('스킨', 'Skins') + ' ' + (S.gems.skins || []).length + '/' + SKINS.length +
+        ' · ' + L('칭호', 'Titles') + ' ' + (S.gems.titles || []).length + '/' + TITLES.length;
+    }
+    const heroT = $('#heroTitle');
+    if (heroT) {
+      const tl = titleLabel(S.gems.title);
+      heroT.textContent = tl;
+      heroT.hidden = !tl;
+    }
+    applyLook();
+  }
+
+  /* ------------------------------------------------------------- the shop -- */
+  let shopOpen = false;
+
+  function shopSkinRow(sk) {
+    const owned = ownedSkin(sk.id);
+    const on = S.gems.skin === sk.id;
+    const row = h('div', 'shop-item' + (on ? ' is-on' : '') + (owned ? ' owned' : ''));
+    const sw = h('span', 'sw');
+    sw.style.background = 'linear-gradient(135deg,' + sk.accent + ',' + sk.accent2 + ')';
+    row.appendChild(sw);
+    const main = h('div', 'si-main');
+    main.appendChild(h('b', null, skinLabel(sk.id)));
+    main.appendChild(h('small', null, owned ? (on ? L('장착 중', 'Equipped') : L('보유 중', 'Owned')) : L('해금 ', 'Unlock ') + sk.price + ' 💎'));
+    row.appendChild(main);
+    const btn = h('button', 'btn sm' + (on ? ' ghost' : ' primary'), on ? L('장착 중', 'Equipped') : owned ? L('장착', 'Equip') : sk.price + ' 💎');
+    btn.type = 'button';
+    if (!on) btn.dataset.shop = 'skin:' + sk.id;
+    if (on) btn.disabled = true;
+    row.appendChild(btn);
+    return row;
+  }
+
+  function shopTitleRow(t) {
+    const owned = ownedTitle(t.id);
+    const on = (S.gems.title || 'none') === t.id;
+    const row = h('div', 'shop-item' + (on ? ' is-on' : '') + (owned ? ' owned' : ''));
+    const sw = h('span', 'sw sw-title', t.id === 'none' ? '—' : t.icon);
+    row.appendChild(sw);
+    const main = h('div', 'si-main');
+    main.appendChild(h('b', null, t.id === 'none' ? L('칭호 없음', 'No title') : t.icon + ' ' + L(t.ko, t.en)));
+    main.appendChild(h('small', null, owned ? (on ? L('장착 중', 'Equipped') : L('보유 중', 'Owned')) : L('해금 ', 'Unlock ') + t.price + ' 💎'));
+    row.appendChild(main);
+    const btn = h('button', 'btn sm' + (on ? ' ghost' : ' primary'), on ? L('장착 중', 'Equipped') : owned ? L('장착', 'Equip') : t.price + ' 💎');
+    btn.type = 'button';
+    if (!on) btn.dataset.shop = 'title:' + t.id;
+    if (on) btn.disabled = true;
+    row.appendChild(btn);
+    return row;
+  }
+
+  function paintShop() {
+    $('#modalTitle').textContent = L('💎 보석 상점', '💎 Gem shop');
+    const body = $('#modalBody');
+    body.innerHTML = '';
+
+    const top = h('div', 'shop-bal');
+    top.appendChild(h('b', null, String(gemN())));
+    top.appendChild(h('span', null, '💎'));
+    top.appendChild(h('i', null, L('보석 보유', 'gems available')));
+    body.appendChild(top);
+
+    body.appendChild(h('div', 'shop-h', L('네온 스킨', 'Neon skins')));
+    const grid = h('div', 'shop-grid');
+    SKINS.forEach((sk) => grid.appendChild(shopSkinRow(sk)));
+    body.appendChild(grid);
+
+    body.appendChild(h('div', 'shop-h', L('프로필 칭호', 'Profile titles')));
+    const grid2 = h('div', 'shop-grid');
+    TITLES.forEach((t) => grid2.appendChild(shopTitleRow(t)));
+    body.appendChild(grid2);
+
+    body.appendChild(h('div', 'shop-h', L('보석 획득 방법', 'How to earn gems')));
+    const earn = h('div', 'shop-earn');
+    GEM_EARN.forEach((e) => {
+      const row = h('div');
+      row.appendChild(h('span', null, L(e[0], e[1])));
+      row.appendChild(h('b', null, '+' + e[2] + ' 💎'));
+      earn.appendChild(row);
+    });
+    body.appendChild(earn);
+    body.appendChild(
+      h('p', 'shop-tip', L('보석은 플레이로만 얻고, 실제 돈은 들지 않아요.', 'Gems only come from playing — they never cost real money.'))
+    );
+  }
+
+  function openShop() {
+    shopOpen = true;
+    paintShop();
+    const m = $('#modal');
+    m.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function buyOrEquipSkin(id) {
+    const sk = skinObj(id);
+    if (!ownedSkin(id)) {
+      if (gemN() < sk.price) {
+        toast(L('보석이 모자라요', 'Not enough gems') + ' · ' + sk.price + ' 💎', null, '💎');
+        Sound.bad();
+        return;
+      }
+      S.gems.n = (S.gems.n | 0) - sk.price;
+      S.gems.spent = (S.gems.spent | 0) + sk.price;
+      S.gems.skins.push(id);
+      Sound.win();
+      Confetti.fire(50);
+      toast(L('스킨 해금', 'Skin unlocked') + ' · ' + skinLabel(id), 'good', '🎨');
+    } else {
+      Sound.tick();
+    }
+    S.gems.skin = id;
+    applyLook();
+    renderGems();
+    if (shopOpen) paintShop();
+    save();
+    toast(L('스킨을 장착했어요', 'Skin equipped') + ' · ' + skinLabel(id), 'good', '🎨');
+  }
+
+  function buyOrEquipTitle(id) {
+    const t = titleObj(id);
+    if (!ownedTitle(id)) {
+      if (gemN() < t.price) {
+        toast(L('보석이 모자라요', 'Not enough gems') + ' · ' + t.price + ' 💎', null, '💎');
+        Sound.bad();
+        return;
+      }
+      S.gems.n = (S.gems.n | 0) - t.price;
+      S.gems.spent = (S.gems.spent | 0) + t.price;
+      S.gems.titles.push(id);
+      Sound.win();
+      toast(L('칭호 해금', 'Title unlocked') + ' · ' + t.icon + ' ' + L(t.ko, t.en), 'good', '🏷');
+    } else {
+      Sound.tick();
+    }
+    S.gems.title = id;
+    renderGems();
+    renderBattleBoard();
+    if (viewNow === 'stats') renderStats();
+    if (shopOpen) paintShop();
+    save();
+    toast(id === 'none' ? L('칭호를 해제했어요', 'Title removed') : L('칭호를 장착했어요', 'Title equipped') + ' · ' + t.icon + ' ' + L(t.ko, t.en), 'good', '🏷');
+  }
+
+  function bindGems() {
+    const chip = $('#hudGems');
+    if (chip) chip.addEventListener('click', () => { openShop(); Sound.tick(); });
+    const open = $('#btnOpenShop');
+    if (open) open.addEventListener('click', () => { openShop(); Sound.tick(); });
+    const body = $('#modalBody');
+    if (body) {
+      body.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-shop]');
+        if (!b) return;
+        const parts = String(b.dataset.shop).split(':');
+        if (parts[0] === 'skin') buyOrEquipSkin(parts[1]);
+        else if (parts[0] === 'title') buyOrEquipTitle(parts[1]);
+      });
     }
   }
 
@@ -1078,7 +1440,10 @@
     });
   }
   function baseUrl() {
-    return location.href.split('#')[0];
+    const raw = location.href.split('#')[0];
+    if (!I18N.isEn || !I18N.isEn()) return raw;
+    if (/[?&]lang=/i.test(raw)) return raw.replace(/([?&])lang=[^&]*/i, '$1lang=en');
+    return raw + (raw.indexOf('?') >= 0 ? '&' : '?') + 'lang=en';
   }
 
   /* ------------------------------------------------ AI ghost rivals ---- */
@@ -1143,7 +1508,7 @@
   function pendingOppName(b) {
     if (!b) return '';
     const names = (b.entries || []).map((en) => en.name);
-    const nm = b.opp || (b.invite && !names.length ? '친구' : '');
+    const nm = b.opp || (b.invite && !names.length ? L('친구', 'Friend') : '');
     if (!nm) return '';
     return names.indexOf(nm) === -1 ? nm : '';
   }
@@ -1331,6 +1696,10 @@
     save();
     if (b.rounds.length >= 5) {
       b.done = true;
+      if (!b.finishPaid) {
+        b.finishPaid = true;
+        addGems(10, L('배틀 완주', 'battle finished'));
+      }
       save();
       renderBattleAll();
       renderBattleBoard();
@@ -1347,7 +1716,7 @@
   function boardRows() {
     const b = S.battle;
     if (!b) return [];
-    const rows = [{ name: b.name + ' (나)', me: true, rounds: b.rounds.slice() }];
+    const rows = [{ name: b.name + L(' (나)', ' (me)'), me: true, rounds: b.rounds.slice() }];
     (b.entries || []).forEach((en) => rows.push({ name: en.name, me: false, rounds: en.r.slice(), bot: !!en.bot }));
     const pend = pendingOppName(b);
     if (pend) rows.push({ name: pend, me: false, rounds: [], pending: true });
@@ -1379,8 +1748,7 @@
     const table = h('table', 'board-table');
     const thead = h('thead');
     const hr = h('tr');
-    ['#', '플레이어', 'R1', 'R2', 'R3', 'R4', 'R5', 'Ao5', 'Best'].forEach((t) => hr.appendChild(h('th', null, t)));
-    thead.appendChild(hr);
+    ['#', '플레이어', 'R1', 'R2', 'R3', 'R4', 'R5', 'Ao5', 'Best'].forEach((t) => hr.appendChild(h('th', null, t)));    thead.appendChild(hr);
     table.appendChild(thead);
     const tb = h('tbody');
     const complete = rows.filter((r) => !r.pending && r.rounds.length >= 5 && r.ao5 != null && r.ao5 !== DNF);
@@ -1389,7 +1757,12 @@
     rows.forEach((r, i) => {
       const tr = h('tr', r.me ? 'me' : r.pending ? 'waiting' : '');
       tr.appendChild(h('td', null, i === 0 && winner ? '🏆' : String(i + 1)));
-      tr.appendChild(h('td', 'pname', r.name));
+      const nameCell = h('td', 'pname', r.name);
+      if (r.me) {
+        const tl = titleLabel(S.gems.title);
+        if (tl) nameCell.appendChild(h('span', 'lb-title', tl));
+      }
+      tr.appendChild(nameCell);
       for (let k = 0; k < 5; k++) {
         const rec = r.rounds[k];
         let cls = '';
@@ -1409,6 +1782,10 @@
     renderBattleDiffs(rows);
     if (winner && rivalDone) {
       const me = rows.length > 1 && rows[0] && rows[0].me;
+      if (me && !b.winPaid) {
+        b.winPaid = true;
+        addGems(25, L('배틀 승리', 'battle won'));
+      }
       if (me && !S.flags.battleWon) {
         S.flags.battleWon = true;
         checkAchievements();
@@ -1421,7 +1798,7 @@
     const b = S.battle;
     if (!b) return;
     const rounds = decRounds(payload.r || []);
-    const name = (payload.n || '친구').slice(0, 16);
+    const name = (payload.n || L('친구', 'Friend')).slice(0, 16);
     const key = JSON.stringify(rounds);
     const dup = (b.entries || []).some((en) => JSON.stringify(en.r) === key && en.name === name);
     if (!dup) {
@@ -1441,7 +1818,7 @@
       if (p && p.t === 'b' && BY_ID[p.e]) {
         const seed = p.s >>> 0;
         const ai = p.a && AI_BOTS[p.a] ? p.a : null;
-        const hostName = (p.n || '친구').slice(0, 16);
+        const hostName = (p.n || L('친구', 'Friend')).slice(0, 16);
         S.battle = {
           e: p.e,
           s: seed,
@@ -1460,8 +1837,9 @@
         showView('battle');
         renderBattleAll();
         toast(
-          ai ? 'AI 라이벌 ' + AI_BOTS[ai].name.replace('🤖 ', '') + '와의 배틀에 참가했어요 · ' + BY_ID[p.e].name
-             : hostName + '님의 배틀에 참가했어요 · ' + BY_ID[p.e].name,
+          ai
+            ? L('AI 라이벌 ', 'AI rival ') + AI_BOTS[ai].name.replace('🤖 ', '') + L('와의 배틀에 참가했어요 · ', ' battle joined · ') + BY_ID[p.e].name
+            : hostName + L('님의 배틀에 참가했어요 · ', '’s battle joined · ') + BY_ID[p.e].name,
           'good', '🤝');
         startBattleRun();
         goClean();
@@ -1469,7 +1847,7 @@
     } else if (hash.indexOf('#result=') === 0) {
       const p = decode(hash.slice(8));
       if (p && p.t === 'r' && BY_ID[p.e]) {
-        const friendName = (p.n || '친구').slice(0, 16);
+        const friendName = (p.n || L('친구', 'Friend')).slice(0, 16);
         const fresh = !S.battle || S.battle.s !== (p.s >>> 0) || S.battle.e !== p.e;
         if (fresh) {
           S.battle = {
@@ -1537,6 +1915,7 @@
     $('#btnSound').setAttribute('aria-label', S.settings.sound ? '효과음 끄기' : '효과음 켜기');
     $('#btnTheme').textContent = S.settings.theme === 'dark' ? '🌙' : '☀️';
     document.documentElement.dataset.theme = S.settings.theme;
+    renderGems();
   }
 
   /* =============================================================== stats === */
@@ -1549,6 +1928,7 @@
     $('#heroStreak').textContent = S.quests.streak | 0;
     $('#heroBadges').textContent = Object.keys(S.ach).length;
     $('#heroEvents').textContent = Object.keys(S.stats.events || {}).length;
+    renderGems();
 
     const pb = $('#pbTable');
     pb.innerHTML = '';
@@ -1556,7 +1936,7 @@
     head.appendChild(h('span', null, '종목'));
     head.appendChild(h('b', null, 'Best'));
     head.appendChild(h('b', null, 'Ao5'));
-    head.appendChild(h('span', 'pb-cnt', '기록'));
+    head.appendChild(h('span', 'pb-cnt', '솔브'));
     pb.appendChild(head);
     let rows = 0;
     EVENTS.forEach((ev) => {
@@ -1583,8 +1963,8 @@
       const got = !!S.ach[a.id];
       const b = h('div', 'badge' + (got ? ' got' : ''));
       b.appendChild(h('div', 'b-ico', a.icon));
-      b.appendChild(h('div', 'b-name', a.name));
-      b.appendChild(h('div', 'b-desc', a.desc));
+      b.appendChild(h('div', 'b-name', achName(a)));
+      b.appendChild(h('div', 'b-desc', achDesc(a)));
       grid.appendChild(b);
     });
     $('#badgeCount').textContent = Object.keys(S.ach).length + ' / ' + ACH.length;
@@ -1598,6 +1978,7 @@
 
   /* ============================================================== picker === */
   function openPicker() {
+    shopOpen = false;
     const body = $('#modalBody');
     body.innerHTML = '';
     const groups = [
@@ -1606,8 +1987,7 @@
       { key: 'big', title: '빅큐브' },
       { key: 'blind', title: '블라인드' },
       { key: 'other', title: '기타 퍼즐' }
-    ];
-    groups.forEach((g) => {
+    ];    groups.forEach((g) => {
       const list = EVENTS.filter((e) => e.group === g.key);
       if (!list.length) return;
       body.appendChild(h('div', 'ev-group-title', g.title));
@@ -1620,7 +2000,7 @@
         if (ev.badge) top.appendChild(h('span', 'tag ' + (ev.badgeKind === 'new' ? 'new' : 'legacy'), ev.badge));
         b.appendChild(top);
         b.appendChild(
-          h('div', 'ei-ko', ev.ko + ' · ' + (ev.format === 'ao5' ? 'Ao5' : ev.format === 'mo3' ? 'Mo3' : 'Best'))
+          h('div', 'ei-ko', L(ev.ko, ev.en || ev.name) + ' · ' + (ev.format === 'ao5' ? 'Ao5' : ev.format === 'mo3' ? 'Mo3' : 'Best'))
         );
         b.addEventListener('click', () => {
           setEvent(ev.id);
@@ -1630,8 +2010,7 @@
       });
       body.appendChild(grid);
     });
-    openModal('종목 선택');
-  }
+    openModal('종목 선택');  }
 
   function openModal(title) {
     $('#modalTitle').textContent = title;
@@ -1640,6 +2019,7 @@
     document.body.style.overflow = 'hidden';
   }
   function closeModal() {
+    shopOpen = false;
     $('#modal').hidden = true;
     document.body.style.overflow = '';
   }
@@ -1777,6 +2157,7 @@
     toast(isBest ? '클락 클리어! 최고 기록 ' + fmt(ms) : '클락 클리어! ' + fmt(ms), 'good', '⏰');
     addXp(45);
     questSpecial('minigame');
+    addGems(15, L('클락 타임어택 클리어', 'clock time attack clear'));
     checkAchievements();
     $('#cgBest').textContent = '최고 ' + fmt(S.minigame.clockBest);
     renderClock();
@@ -2024,7 +2405,7 @@
     g.fillText(champ ? champ.name : '—', 240, bannerY + 66);
     g.fillStyle = 'rgba(233,237,255,0.65)';
     g.font = F(600, 28);
-    const champLine = champ && champ.ao5 != null ? 'Ao5 ' + fmt(champ.ao5) + '   ·   Best ' + fmt(champ.best) : '기록 없음';
+    const champLine = champ && champ.ao5 != null ? 'Ao5 ' + fmt(champ.ao5) + '   ·   Best ' + fmt(champ.best) : L('기록 없음', 'No times');
     g.fillText(champLine, 240, bannerY + 110);
 
     // table
@@ -2074,7 +2455,7 @@
 
     g.fillStyle = 'rgba(233,237,255,0.4)';
     g.font = F(600, 24);
-    g.fillText('CUBE ARENA · 같은 스크램블 5개, Ao5 트림 평균 승부', 76, H - 96);
+    g.fillText(L('CUBE ARENA · 같은 스크램블 5개, Ao5 트림 평균 승부', 'CUBE ARENA · same 5 scrambles, Ao5 trimmed average'), 76, H - 96);
     g.fillStyle = '#22d3ee';
     g.font = F(800, 24);
     g.fillText(todayStr(), W - 240, H - 96);
@@ -2160,6 +2541,7 @@
     SD.round = 1;
     SD.target = sdCfg().base;
     SD.last = null;
+    SD.paid5 = false;
     sdNewRound();
     toast('서든데스 시작 · 목표 ' + fmt(SD.target), 'good', '💀');
     Sound.ready();
@@ -2188,6 +2570,10 @@
       }
       addXp(6 + done * 2, true);
       questSpecial('minigame');
+      if (done >= 5 && !SD.paid5) {
+        SD.paid5 = true;
+        addGems(15, L('서든데스 5라운드', 'sudden death 5 rounds'));
+      }
       SD.round++;
       SD.target = Math.max(sdCfg().min, SD.target - sdCfg().step);
       toast('라운드 ' + done + ' 클리어 · 다음 목표 ' + fmt(SD.target), 'good', '🔥');
@@ -2233,6 +2619,13 @@
     });
     $('#hudLevel').addEventListener('click', () => showView('stats'));
     $('#hudStreak').addEventListener('click', () => showView('stats'));
+    const langBtn = $('#btnLang');
+    if (langBtn) {
+      langBtn.addEventListener('click', () => {
+        I18N.toggle();
+        Sound.tick();
+      });
+    }
   }
 
   function bindTabs() {
@@ -2408,7 +2801,7 @@
     $('#btnClearSolves').addEventListener('click', () => {
       const ev = BY_ID[S.settings.event];
       if (!recsOf(ev.id).length) return;
-      if (!window.confirm(ev.name + ' 기록 ' + recsOf(ev.id).length + '개를 지울까요?')) return;
+      if (!window.confirm(I18N.t(ev.name + ' 기록 ' + recsOf(ev.id).length + '개를 지울까요?'))) return;
       S.records[ev.id] = [];
       save();
       renderSolveList();
@@ -2511,8 +2904,10 @@
       if (!b) return;
       const ev = BY_ID[b.e] ? BY_ID[b.e].name : b.e;
       const text = b.ai
-        ? '[Cube Arena] ' + b.name + '님의 ' + ev + ' AI 라이벌(' + b.ai + ') 배틀!\n같은 스크램블 5개로 겨뤄봐요 👇\n' + inviteUrl(b)
-        : '[Cube Arena] ' + b.name + '님의 ' + ev + ' 프렌드 배틀!\n같은 스크램블 5개로 겨뤄봐요 👇\n' + inviteUrl(b);
+        ? '[Cube Arena] ' + b.name + L('님의 ', ' — ') + ev + ' AI rival (' + b.ai + ') battle!\n' +
+          L('같은 스크램블 5개로 겨뤄봐요', 'Same 5 scrambles — take me on') + ' 👇\n' + inviteUrl(b)
+        : '[Cube Arena] ' + b.name + L('님의 ', ' — ') + ev + L(' 프렌드 배틀!', ' friend battle!') + '\n' +
+          L('같은 스크램블 5개로 겨뤄봐요', 'Same 5 scrambles — take me on') + ' 👇\n' + inviteUrl(b);
       copyText(text, '공유 문구를 복사했어요 · 카톡에 붙여넣기');
     });
     $('#btnJoin').addEventListener('click', () => {
@@ -2577,7 +2972,7 @@
           s: p.s >>> 0,
           name: S.profile.name || 'Cuber',
           host: null,
-          opp: (p.n || '친구').slice(0, 16),
+          opp: (p.n || L('친구', 'Friend')).slice(0, 16),
           rounds: [],
           entries: [],
           done: false
@@ -2769,10 +3164,12 @@
       renderHud();
     });
     $('#btnResetAll').addEventListener('click', () => {
-      if (!window.confirm('모든 기록·XP·업적을 지우고 처음 상태로 돌아갑니다. 계속할까요?')) return;
+      if (!window.confirm(I18N.t('모든 기록·XP·업적을 지우고 처음 상태로 돌아갑니다. 계속할까요?'))) return;
       const keepTheme = S.settings.theme;
+      const keepGems = S.gems;
       S = defaults();
       S.settings.theme = keepTheme;
+      S.gems = keepGems;
       save();
       setEvent(S.settings.event);
       renderAll();
@@ -2794,6 +3191,7 @@
   });
 
   function renderAll() {
+    renderGems();
     renderHud();
     renderQuests();
     renderSolveList();
@@ -2818,6 +3216,23 @@
     bindGames();
     bindSuddenDeath();
     bindStats();
+    bindGems();
+    I18N.onChange(function () {
+      applyLook();
+      renderGems();
+      renderHud();
+      renderQuests();
+      renderSolveList();
+      renderStatsStrip();
+      renderChart();
+      renderSplitBar(null);
+      /* a running battle timer keeps its round — only the text is repainted */
+      if (!(battleTimer && battleTimer.isBusy())) renderBattleAll();
+      renderStats();
+      renderChal();
+      sdRender();
+      if (shopOpen) paintShop();
+    });
     setEvent(S.settings.event || '333');
     $('#btnPreview').setAttribute('aria-pressed', S.settings.preview ? 'true' : 'false');
     renderHud();
