@@ -347,7 +347,9 @@
       '  </ul>',
       '</section>',
 
-      '<p class="g-foot">To jump right in, close this window and hold the timer 🧊</p>'
+      '<p class="g-foot">To jump right in, close this window and hold the timer 🧊</p>',
+
+      '<p class="g-credit">Created by <b>kjw</b></p>'
     ].join('\n')
   };
 
