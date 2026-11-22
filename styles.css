@@ -607,8 +607,28 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .copy-row input { font-family: var(--mono); font-size: 11.5px; }
 .join-row { display: flex; gap: 8px; margin-top: 10px; }
 .join-row input { font-size: 12.5px; }
-.battle-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.battle-head-left { display: flex; align-items: center; gap: 8px; }
+.battle-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; row-gap: 6px; }
+.battle-head-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; row-gap: 6px; }
+.battle-head-left .tag.vs {
+  display: inline-block;
+  line-height: 22px;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 0;
+  color: #04121a;
+  font-weight: 900;
+  letter-spacing: .01em;
+  background: linear-gradient(110deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 16px -5px color-mix(in srgb, var(--accent) 90%, transparent);
+}
+.battle-head-left .tag.vs.waiting {
+  background: var(--track);
+  color: var(--muted);
+  box-shadow: none;
+  border: 1px dashed var(--line-strong);
+  line-height: 20px;
+}
 .battle-round { font-size: 12px; font-weight: 700; color: var(--muted); font-family: var(--mono); }
 .dots { display: flex; gap: 5px; }
 .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--track); }
@@ -649,6 +669,9 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .board-table .pname { font-family: var(--font); font-weight: 700; }
 .board-table .dnf { color: var(--bad); }
 .board-table .plus2 { color: var(--warn); }
+.board-table tr.waiting td { color: var(--muted); }
+.board-table tr.waiting td.pname { font-weight: 600; }
+.board-table td.wait, .board-table tr.waiting td.wait { font-family: var(--font); font-weight: 800; font-size: 11px; color: var(--accent); }
 .board-empty { padding: 22px 8px; text-align: center; color: var(--muted); font-size: 12.5px; }
 
 /* ---------------------------------------------------------------- games -- */

@@ -1081,6 +1081,90 @@
     return location.href.split('#')[0];
   }
 
+  /* ------------------------------------------------ AI ghost rivals ---- */
+  /* An AI rival replays a believable five-round set for its tier. Times are
+     derived from the same tier table the player is graded by, and from the
+     battle seed, so the same link shows the same bot times everywhere. */
+  const AI_LEVEL = { Challenger: 1, Pro: 2, Master: 3, Grandmaster: 4 };
+  const AI_BOTS = {
+    Challenger: { key: 'Challenger', name: '🤖 Challenger Bot', spread: 0.12 },
+    Pro: { key: 'Pro', name: '🤖 Pro Bot', spread: 0.1 },
+    Master: { key: 'Master', name: '🤖 Master Bot', spread: 0.085 },
+    Grandmaster: { key: 'Grandmaster', name: '🤖 Grandmaster Bot', spread: 0.07 }
+  };
+  /* Events whose tier numbers are not single times (FMC counts moves) fall
+     back to a per-tier time budget instead. */
+  const AI_FALLBACK_MS = { '333fm': 300000, '333mbf': 420000 };
+  const AI_FALLBACK_SCALE = { 1: 1.3, 2: 1.0, 3: 0.85, 4: 0.7 };
+  /* 이 종목들의 티어 수치는 회전 수(moves)라서 시간(ms) 기준으로 쓸 수 없다. */
+  const AI_MOVE_EVENTS = { '333fm': 1, '333mbf': 1 };
+
+  function aiBaseMs(eventId, tier) {
+    const lvl = AI_LEVEL[tier] || 1;
+    const t = TIER_TIMES[eventId];
+    // 그 티어의 기준 기록을 봇의 "평균적인 한 판"으로 쓴다.
+    if (t && !AI_MOVE_EVENTS[eventId]) return t[5 - lvl];
+    return (AI_FALLBACK_MS[eventId] || 20000) * (AI_FALLBACK_SCALE[lvl] || 1);
+  }
+
+  function aiRounds(eventId, seed, tier) {
+    const bot = AI_BOTS[tier] || AI_BOTS.Challenger;
+    const base = aiBaseMs(eventId, tier);
+    const rng = SCR.mulberry32((((SCR.hashStr('ai|' + bot.key + '|' + eventId) ^ (seed >>> 0)) >>> 0) || 7));
+    const out = [];
+    for (let i = 0; i < 5; i++) {
+      const jitter = (rng() * 2 - 1) * bot.spread;
+      let ms = base * (1 + jitter);
+      // 가끔 한 판이 크게 흔들리는 사람 같은 편차
+      if (rng() < 0.12) ms *= 1 + rng() * 0.18;
+      ms = Math.max(120, Math.round(ms));
+      if (eventId === '333fm' || eventId === '333mbf') ms = Math.round(ms / 500) * 500;
+      out.push({ ms: ms, pen: rng() < 0.035 ? '+2' : null });
+    }
+    return out;
+  }
+
+  function aiEntry(eventId, seed, tier) {
+    const bot = AI_BOTS[tier];
+    if (!bot) return null;
+    return { name: bot.name, r: aiRounds(eventId, seed, tier), bot: bot.key };
+  }
+
+  function opponentChoice() {
+    const sel = $('#battleOpponent');
+    const ch = sel ? sel.value : 'friend';
+    if (ch.indexOf('ai:') === 0 && AI_BOTS[ch.slice(3)]) return { ai: ch.slice(3), name: null };
+    const inp = $('#battleOppName');
+    const nm = inp ? (inp.value || '').trim().slice(0, 12) : '';
+    return { ai: null, name: nm || null };
+  }
+
+  /* Opponent who is expected but has not sent a result yet. */
+  function pendingOppName(b) {
+    if (!b) return '';
+    const names = (b.entries || []).map((en) => en.name);
+    const nm = b.opp || (b.invite && !names.length ? '친구' : '');
+    if (!nm) return '';
+    return names.indexOf(nm) === -1 ? nm : '';
+  }
+
+  function battleVsLabel(b) {
+    if (!b) return '';
+    const short = (n) => String(n).replace('🤖 ', '');
+    const names = (b.entries || []).map((en) => short(en.name));
+    if (names.length) {
+      return 'VS ' + names[0] + (names.length > 1 ? ' 외 ' + (names.length - 1) + '명' : '');
+    }
+    const pend = pendingOppName(b);
+    return pend ? 'VS ' + short(pend) : '';
+  }
+
+  function inviteUrl(b) {
+    const payload = { t: 'b', e: b.e, s: b.s, n: b.host || b.name };
+    if (b.ai) payload.a = b.ai;
+    return baseUrl() + '#battle=' + encode(payload);
+  }
+
   let battleTimer = null;
 
   function battleScramble(round) {
@@ -1097,21 +1181,36 @@
   function createBattle(seedIn) {
     const e = $('#battleEvent').value || S.settings.event;
     const name = ensureBattleName();
+    const pick = opponentChoice();
+    const seed = (seedIn || SCR.randomSeed()) >>> 0;
     S.profile.name = name;
     S.battle = {
       e: e,
-      s: seedIn || SCR.randomSeed(),
+      s: seed,
       name: name,
       host: name,
+      ai: pick.ai,
+      opp: pick.ai ? AI_BOTS[pick.ai].name : pick.name,
       rounds: [],
       entries: [],
       done: false,
       startedAt: Date.now()
     };
+    if (pick.ai) S.battle.entries.push(aiEntry(e, seed, pick.ai));
     S.flags.battleJoined = true;
     checkAchievements();
     save();
     renderBattleAll();
+  }
+
+  function renderBattleVs() {
+    const tag = $('#battleVsTag');
+    if (!tag) return;
+    const b = S.battle;
+    const label = battleVsLabel(b);
+    tag.textContent = label || 'VS';
+    tag.hidden = !label;
+    tag.classList.toggle('waiting', !!(b && label && !(b.entries || []).length));
   }
 
   function renderBattleEventSelect() {
@@ -1137,6 +1236,7 @@
     if (has) {
       $('#battleEventTag').textContent = BY_ID[b.e] ? BY_ID[b.e].name : b.e;
       $('#resultEventTag').textContent = BY_ID[b.e] ? BY_ID[b.e].name : b.e;
+      renderBattleVs();
       renderBattleBoard();
       renderBattleRounds();
       if (b.rounds.length >= 5 && !b.done) b.done = true;
@@ -1147,6 +1247,8 @@
         const ao5 = averageOf(b.rounds, 5);
         const best = bestOf(b.rounds);
         addSummary('#resultSummary', [['Ao5', fmt(ao5)], ['Best', fmt(best)], ['라운드', b.rounds.length + '/5']]);
+        const rival = boardRows().filter((r) => !r.me && !r.pending)[0];
+        if (rival) addSummary('#resultSummary', [[rival.name, rival.ao5 == null ? '—' : fmt(rival.ao5)]]);
         $('#resultLinkOut').value = baseUrl() + '#result=' + encode({ t: 'r', e: b.e, s: b.s, n: b.name, r: encRounds(b.rounds) });
       } else {
         // 진행 중(또는 아직 0라운드)인 배틀은 새로고침·재진입해도 타이머 화면을 바로 띄운다.
@@ -1181,6 +1283,8 @@
     $('#battleResult').hidden = true;
     $('#battleRun').hidden = false;
     $('#battleBoard').hidden = false;
+    $('#battleEventTag').textContent = BY_ID[b.e] ? BY_ID[b.e].name : b.e;
+    renderBattleVs();
     if (battleTimer) battleTimer.reset();
     renderBattleRound();
     renderBattleRounds();
@@ -1236,6 +1340,7 @@
     } else {
       renderBattleRound();
       renderBattleRounds();
+      renderBattleBoard();
     }
   }
 
@@ -1243,7 +1348,9 @@
     const b = S.battle;
     if (!b) return [];
     const rows = [{ name: b.name + ' (나)', me: true, rounds: b.rounds.slice() }];
-    (b.entries || []).forEach((en) => rows.push({ name: en.name, me: false, rounds: en.r.slice() }));
+    (b.entries || []).forEach((en) => rows.push({ name: en.name, me: false, rounds: en.r.slice(), bot: !!en.bot }));
+    const pend = pendingOppName(b);
+    if (pend) rows.push({ name: pend, me: false, rounds: [], pending: true });
     rows.forEach((r) => {
       r.ao5 = r.rounds.length >= 5 ? averageOf(r.rounds, 5) : null;
       r.best = bestOf(r.rounds);
@@ -1262,6 +1369,7 @@
     if (!box) return;
     const b = S.battle;
     if (!b) return;
+    renderBattleVs();
     const rows = boardRows();
     box.innerHTML = '';
     if (!rows.length) {
@@ -1275,25 +1383,31 @@
     thead.appendChild(hr);
     table.appendChild(thead);
     const tb = h('tbody');
-    const complete = rows.filter((r) => r.rounds.length >= 5 && r.ao5 != null && r.ao5 !== DNF);
+    const complete = rows.filter((r) => !r.pending && r.rounds.length >= 5 && r.ao5 != null && r.ao5 !== DNF);
     const winner = complete.length ? complete[0].name : null;
+    const rivalDone = complete.some((r) => !r.me);
     rows.forEach((r, i) => {
-      const tr = h('tr', r.me ? 'me' : '');
+      const tr = h('tr', r.me ? 'me' : r.pending ? 'waiting' : '');
       tr.appendChild(h('td', null, i === 0 && winner ? '🏆' : String(i + 1)));
       tr.appendChild(h('td', 'pname', r.name));
       for (let k = 0; k < 5; k++) {
         const rec = r.rounds[k];
-        const td = h('td', rec ? (rec.pen === 'dnf' ? 'dnf' : rec.pen === '+2' ? 'plus2' : '') : '', rec ? fmt(eff(rec)) : '·');
-        tr.appendChild(td);
+        let cls = '';
+        let txt = rec ? fmt(eff(rec)) : '·';
+        if (rec) {
+          if (rec.pen === 'dnf') cls = 'dnf';
+          else if (rec.pen === '+2') cls = 'plus2';
+        }
+        tr.appendChild(h('td', cls, txt));
       }
-      tr.appendChild(h('td', null, r.ao5 == null ? '—' : fmt(r.ao5)));
+      tr.appendChild(h('td', r.pending ? 'wait' : null, r.pending ? '대기 중...' : r.ao5 == null ? '—' : fmt(r.ao5)));
       tr.appendChild(h('td', null, r.best == null ? '—' : fmt(r.best)));
       tb.appendChild(tr);
     });
     table.appendChild(tb);
     box.appendChild(table);
     renderBattleDiffs(rows);
-    if (winner) {
+    if (winner && rivalDone) {
       const me = rows.length > 1 && rows[0] && rows[0].me;
       if (me && !S.flags.battleWon) {
         S.flags.battleWon = true;
@@ -1305,6 +1419,7 @@
 
   function addFriendResult(payload) {
     const b = S.battle;
+    if (!b) return;
     const rounds = decRounds(payload.r || []);
     const name = (payload.n || '친구').slice(0, 16);
     const key = JSON.stringify(rounds);
@@ -1313,6 +1428,7 @@
       b.entries = b.entries || [];
       b.entries.push({ name: name, r: rounds });
     }
+    if (!b.opp) b.opp = name;
     save();
     renderBattleBoard();
     renderBattleAll();
@@ -1323,42 +1439,64 @@
     if (hash.indexOf('#battle=') === 0) {
       const p = decode(hash.slice(8));
       if (p && p.t === 'b' && BY_ID[p.e]) {
+        const seed = p.s >>> 0;
+        const ai = p.a && AI_BOTS[p.a] ? p.a : null;
+        const hostName = (p.n || '친구').slice(0, 16);
         S.battle = {
           e: p.e,
-          s: p.s >>> 0,
+          s: seed,
           name: (S.profile.name || 'Cuber').slice(0, 12),
-          host: (p.n || '친구').slice(0, 16),
+          host: hostName,
+          ai: ai,
+          opp: ai ? AI_BOTS[ai].name : hostName,
           rounds: [],
           entries: [],
           done: false
         };
+        if (ai) S.battle.entries.push(aiEntry(p.e, seed, ai));
         S.flags.battleJoined = true;
         checkAchievements();
         save();
         showView('battle');
         renderBattleAll();
-        toast((p.n || '친구') + '님의 배틀에 참가했어요 · ' + BY_ID[p.e].name, 'good', '🤝');
+        toast(
+          ai ? 'AI 라이벌 ' + AI_BOTS[ai].name.replace('🤖 ', '') + '와의 배틀에 참가했어요 · ' + BY_ID[p.e].name
+             : hostName + '님의 배틀에 참가했어요 · ' + BY_ID[p.e].name,
+          'good', '🤝');
         startBattleRun();
         goClean();
       }
     } else if (hash.indexOf('#result=') === 0) {
       const p = decode(hash.slice(8));
       if (p && p.t === 'r' && BY_ID[p.e]) {
-        if (!S.battle || S.battle.s !== (p.s >>> 0) || S.battle.e !== p.e) {
+        const friendName = (p.n || '친구').slice(0, 16);
+        const fresh = !S.battle || S.battle.s !== (p.s >>> 0) || S.battle.e !== p.e;
+        if (fresh) {
           S.battle = {
             e: p.e,
             s: p.s >>> 0,
             name: (S.profile.name || 'Cuber').slice(0, 12),
             host: null,
+            opp: friendName,
             rounds: [],
             entries: [],
             done: false
           };
+          S.flags.battleJoined = true;
+          checkAchievements();
+          save();
         }
         showView('battle');
-        renderBattleAll();
         addFriendResult(p);
-        toast((p.n || '친구') + '님의 결과를 불러왔어요', 'good', '📥');
+        const b = S.battle;
+        if (b && !b.done && !b.rounds.length) {
+          // 친구의 5라운드 기록을 리더보드에 띄운 채로 1라운드부터 대결
+          startBattleRun();
+          toast(friendName + '님의 기록에 도전! 라운드 1부터 시작해요', 'good', '⚔️');
+        } else {
+          renderBattleAll();
+          toast(friendName + '님의 결과를 불러왔어요', 'good', '📥');
+        }
         goClean();
       }
     }
@@ -2318,45 +2456,63 @@
     bpad.addEventListener('pointercancel', () => battleTimer.release());
     bpad.addEventListener('contextmenu', (e) => e.preventDefault());
 
+    const oppSel = $('#battleOpponent');
+    const oppField = $('#battleOppNameField');
+    function syncOppField() {
+      if (!oppField || !oppSel) return;
+      oppField.hidden = oppSel.value.indexOf('ai:') === 0;
+    }
+    if (oppSel) {
+      oppSel.addEventListener('change', syncOppField);
+      syncOppField();
+    }
+
     $('#btnCreateBattle').addEventListener('click', () => {
       createBattle();
       const b = S.battle;
-      const url = baseUrl() + '#battle=' + encode({ t: 'b', e: b.e, s: b.s, n: b.name });
-      $('#battleLinkOut').value = url;
+      $('#battleLinkOut').value = inviteUrl(b);
+      if (!b.ai && !b.invite) {
+        b.invite = true;
+        save();
+      }
+      renderBattleBoard();
       $('#linkEventTag').textContent = BY_ID[b.e].name;
       $('#battleLinkPanel').hidden = false;
       $('#battleSetup').hidden = true;
       // 링크를 막 만든 단계에서는 타이머 대신 초대 링크만 보여 준다.
       $('#battleRun').hidden = true;
-      toast('초대 링크를 만들었어요', 'good', '🔗');
+      $('#battleBoard').hidden = false;
+      toast(b.ai ? 'AI 라이벌을 리더보드에 올렸어요 · 링크로 친구도 부를 수 있어요' : '초대 링크를 만들었어요', 'good', '🔗');
       Sound.win();
     });
     $('#btnStartSolo').addEventListener('click', () => {
-      if (!S.battle) createBattle();
-      else {
-        const e = $('#battleEvent').value || S.settings.event;
-        const name = ensureBattleName();
-        if (S.battle.e !== e || S.battle.name !== name) {
-          S.battle.e = e;
-          S.battle.name = name;
-          S.battle.host = name;
-        }
-      }
+      createBattle();
       $('#battleSetup').hidden = true;
       startBattleRun();
+      const b = S.battle;
+      if (b && b.ai) {
+        const bot = AI_BOTS[b.ai];
+        toast(bot.name + '와의 대결 시작! 상대 기록은 리더보드에 있어요', 'good', '⚔️');
+      }
     });
     $('#btnBattleGo').addEventListener('click', () => {
       $('#battleLinkPanel').hidden = true;
       startBattleRun();
+    });
+    $('#btnCopyInvite').addEventListener('click', () => {
+      const b = S.battle;
+      if (!b) return;
+      copyText(inviteUrl(b), '초대 링크를 복사했어요 · 친구에게 붙여넣기');
     });
     $('#btnCopyLink').addEventListener('click', () => copyField('#battleLinkOut', '초대 링크를 복사했어요'));
     $('#btnCopyResult').addEventListener('click', () => copyField('#resultLinkOut', '결과 링크를 복사했어요'));
     $('#btnCopyShare').addEventListener('click', () => {
       const b = S.battle;
       if (!b) return;
-      const url = baseUrl() + '#battle=' + encode({ t: 'b', e: b.e, s: b.s, n: b.name });
       const ev = BY_ID[b.e] ? BY_ID[b.e].name : b.e;
-      const text = '[Cube Arena] ' + b.name + '님의 ' + ev + ' 프렌드 배틀!\n같은 스크램블 5개로 겨뤄봐요 👇\n' + url;
+      const text = b.ai
+        ? '[Cube Arena] ' + b.name + '님의 ' + ev + ' AI 라이벌(' + b.ai + ') 배틀!\n같은 스크램블 5개로 겨뤄봐요 👇\n' + inviteUrl(b)
+        : '[Cube Arena] ' + b.name + '님의 ' + ev + ' 프렌드 배틀!\n같은 스크램블 5개로 겨뤄봐요 👇\n' + inviteUrl(b);
       copyText(text, '공유 문구를 복사했어요 · 카톡에 붙여넣기');
     });
     $('#btnJoin').addEventListener('click', () => {
@@ -2421,6 +2577,7 @@
           s: p.s >>> 0,
           name: S.profile.name || 'Cuber',
           host: null,
+          opp: (p.n || '친구').slice(0, 16),
           rounds: [],
           entries: [],
           done: false
@@ -2428,7 +2585,12 @@
       }
       addFriendResult(p);
       $('#friendResultLink').value = '';
-      toast('친구 결과를 리더보드에 올렸어요', 'good', '📥');
+      if (!S.battle.done && !S.battle.rounds.length) {
+        startBattleRun();
+        toast('친구 기록에 도전! 라운드 1부터 시작해요', 'good', '⚔️');
+      } else {
+        toast('친구 결과를 리더보드에 올렸어요', 'good', '📥');
+      }
     });
   }
 

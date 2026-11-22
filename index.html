@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="styles.css?v=3">
+<link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
 <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -140,7 +140,8 @@
           </div>
           <p class="muted">
             종목을 고르고 링크를 만들면 <b>같은 스크램블 5개</b>가 담긴 초대 링크가 만들어집니다.
-            친구가 링크를 열면 바로 대결 모드로 들어가고, 끝나면 결과 링크로 리더보드에서 나란히 비교할 수 있어요.
+            링크를 보낼 친구가 없어도 <b>AI 라이벌</b>과 바로 겨룰 수 있어요.
+            상대 기록은 리더보드에 바로 뜨고, 끝나면 결과 링크로 나란히 비교할 수 있습니다.
           </p>
           <div class="form-grid">
             <label class="field">
@@ -150,6 +151,20 @@
             <label class="field">
               <span>내 닉네임</span>
               <input id="battleName" maxlength="12" placeholder="Cuber" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>상대</span>
+              <select id="battleOpponent">
+                <option value="friend">실제 친구 (링크 공유)</option>
+                <option value="ai:Challenger">AI 라이벌 · Challenger</option>
+                <option value="ai:Pro">AI 라이벌 · Pro</option>
+                <option value="ai:Master">AI 라이벌 · Master</option>
+                <option value="ai:Grandmaster">AI 라이벌 · Grandmaster</option>
+              </select>
+            </label>
+            <label class="field" id="battleOppNameField">
+              <span>상대 닉네임 <small class="muted">(선택)</small></span>
+              <input id="battleOppName" maxlength="12" placeholder="친구 닉네임" autocomplete="off" spellcheck="false">
             </label>
           </div>
           <div class="row">
@@ -181,6 +196,7 @@
         <div class="card" id="battleRun" hidden>
           <div class="battle-head">
             <div class="battle-head-left">
+              <span class="tag vs" id="battleVsTag" hidden>VS</span>
               <span class="tag" id="battleEventTag">3x3x3</span>
               <span class="battle-round" id="battleRoundLabel">라운드 1 / 5</span>
             </div>
@@ -194,6 +210,7 @@
           </div>
           <div class="battle-rounds" id="battleRounds"></div>
           <div class="row">
+            <button class="btn sm" id="btnCopyInvite" type="button">🔗 초대 링크 복사</button>
             <button class="btn ghost sm" id="btnBattleQuit" type="button">배틀 나가기</button>
           </div>
         </div>
@@ -390,9 +407,9 @@
       <section class="g-sec">
         <div class="g-head"><span class="g-ico" aria-hidden="true">🤝</span><h3>친구 배틀 하는 법</h3></div>
         <div class="g-steps">
-          <div class="g-step"><span class="g-num">1</span><p>방장이 종목을 고르고 <b>[배틀 링크 만들기]</b>를 누른 뒤, 카카오톡·디스코드로 링크를 보내요.</p></div>
-          <div class="g-step"><span class="g-num">2</span><p>친구가 링크를 열면 <b>똑같은 5개 스크램블</b>로 바로 대결이 시작돼요.</p></div>
-          <div class="g-step"><span class="g-num">3</span><p>둘 다 다 풀고 <b>[결과 링크 복사]</b>를 서로 주고받아 <b>[불러오기]</b>에 넣으면, 리더보드에서 <b>Ao5 승패</b>와 <b>라운드별 시차</b>를 나란히 보고 <b>결과 카드 PNG</b>로 저장할 수 있어요!</p></div>
+          <div class="g-step"><span class="g-num">1</span><p>방장이 <b>종목·상대</b>를 고르고 <b>[배틀 링크 만들기]</b>를 누른 뒤, 카카오톡·디스코드로 링크를 보내요. 상대를 <b>AI 라이벌</b>(Challenger~Grandmaster)로 고르면 링크 없이 <b>[바로 도전]</b>으로 바로 겨룰 수 있어요.</p></div>
+          <div class="g-step"><span class="g-num">2</span><p>친구가 링크를 열면 <b>똑같은 5개 스크램블</b>로 바로 대결이 시작돼요. 상대 이름은 배틀 카드 위 <b>VS 배지</b>와 리더보드에 바로 뜨고, 아직 결과가 없으면 <b>대기 중</b>으로 표시돼요.</p></div>
+          <div class="g-step"><span class="g-num">3</span><p>친구의 <b>결과 링크</b>를 열면 친구의 5판 기록이 리더보드에 깔린 채로 <b>1라운드부터</b> 바로 도전할 수 있어요. 둘 다 끝나면 <b>Ao5 승패</b>와 <b>라운드별 시차</b>를 나란히 보고 <b>결과 카드 PNG</b>로 저장할 수 있어요!</p></div>
         </div>
       </section>
 
@@ -426,8 +443,8 @@
   </div>
 </div>
 
-<script src="scrambles.js?v=3"></script>
-<script src="puzzles.js?v=3"></script>
-<script src="app.js?v=3"></script>
+<script src="scrambles.js?v=4"></script>
+<script src="puzzles.js?v=4"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>
